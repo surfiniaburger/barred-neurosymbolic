@@ -44,7 +44,7 @@ We did not arrive at our current architecture through theoretical optimism. We a
 ## 1. Phase 1: The Dirty Seed & Token-Burn Trap
 
 ### 1.1 What We Tried Initially
-Our earliest baseline attempted to generate debate test seeds directly from raw CVE descriptions and unstructured LLM prompts (`scenarios/debate/cve_seeds_500.jsonl`). We prompted debater agents to find vulnerabilities in arbitrary code snippets using natural language prompts without rigid schema enforcement.
+Our earliest baseline attempted to generate debate test seeds directly from raw CVE descriptions and unstructured LLM prompts (`cve_seeds_500.jsonl`). We prompted debater agents to find vulnerabilities in arbitrary code snippets using natural language prompts without rigid schema enforcement.
 
 ### 1.2 How It Failed
 1. **The Token-Burn Spiral:** Because the raw seeds had imprecise, un-anchored predicates (e.g., *"Find if this code has a memory corruption flaw"*), the Pro and Con debaters argued over definitions rather than code structure. Debates dragged on across 10+ turns, burning over **$100,000$ tokens per attempt** without converging.
@@ -55,12 +55,11 @@ Our earliest baseline attempted to generate debate test seeds directly from raw 
 1. **Pydantic Structured Output Enforcement (`src/agentbeats/structured_output.py`):**
    - Replaced free-form string outputs with rigid, schema-validated JSON objects with built-in retry and regex fallback parsers.
    - Enforced strict anchor metadata: every claim must declare `source_var`, `sink_call`, and `line_anchor`.
-2. **5-Fold Stratified Cross-Validation (`scripts/train_pre_filter.py`, `RFC_PRE_FILTER_STRATIFIED_CV.md`):**
+2. **5-Fold Stratified Cross-Validation (`RFC_PRE_FILTER_STRATIFIED_CV.md`):**
    - Implemented strict 5-fold cross-validation partitioned by CVE vulnerability family (`memory_safety`, `integer_overflow`, `concurrency`, `input_validation`).
    - Verified that zero test snippets shared identical function signatures with the training set, eliminating data leakage.
 
 ```python
-# From src/agentbeats/structured_output.py
 # Fallback parser that recovers malformed model completions before failing
 def extract_and_parse_json(text: str, target_schema: Type[BaseModel]) -> BaseModel:
     try:
@@ -83,7 +82,7 @@ At first glance, the heuristic parser appeared to "work well"—it produced quic
 - It could not resolve pointer aliases or variable scoping within nested C blocks.
 - Worse, when the parser encountered unhandled or malformed C macros, it failed silently, returning a default `safe` or `clean` status.
 
-### 2.3 The Switch to Graphify Tree-Sitter AST (`graphify_flow_extractor.py`, `graph_extractor.py`)
+### 2.3 The Switch to Graphify Tree-Sitter AST (`ast_flow.py`, `reachability.py`)
 We scrapped heuristic matching and built a custom Tree-sitter AST visitor with direct C and Python language grammars.
 
 ```text
@@ -106,17 +105,13 @@ We scrapped heuristic matching and built a custom Tree-sitter AST visitor with d
 ```
 
 ### 2.4 The Critical "Fail-Closed" Epiphany
-The breakthrough occurred when we codified the **Fail-Closed Contract** in `scenarios/debate/graph_dataflow.py`:
+The breakthrough occurred when we codified the **Fail-Closed Contract** in `reachability.py`:
 
 ```python
 # evaluate_graph_reachability: strict fail-closed contract
 if not snapshot.is_complete:
     # If Tree-sitter encountered syntax errors, unhandled macros, or missing nodes:
-    return DataFlowDecision(
-        risk_score=1.0,  # Maximum risk / rejected
-        is_safe=False,
-        reason="B_UNSUPPORTED_SYNTAX: Incomplete AST snapshot - fail closed."
-    )
+    return 1.0  # Maximum risk / rejected
 ```
 
 1. **Deterministic Speed:** Tree-sitter AST reachability executes in **10–50 milliseconds** of local CPU time consuming **$0$ LLM tokens**.
@@ -136,7 +131,7 @@ Google ADK includes a built-in prompt optimizer (`agents-cli eval optimize`). Th
 3. **Exorbitant Cost:** The unadapted baseline consumed **$99,104.4$ tokens per valid accepted row**.
 
 ### 3.3 The Solution: Graph-Powered GEPA & 4-Way Partitioned Pareto Pools
-Instead of passing natural language transcripts to an LLM, our **Graph-Powered GEPA Reflector** (`scenarios/debate/reflector_agent.py`, `SPEC_GRAPH_POWERED_GEPA_REFLECTOR.md`) transformed AST failure topologies into concise, deterministic micro-directives:
+Instead of passing natural language transcripts to an LLM, our **Graph-Powered GEPA Reflector** (`reflector.py`, `SPEC_GRAPH_POWERED_GEPA_REFLECTOR.md`) transformed AST failure topologies into concise, deterministic micro-directives:
 
 1. **4 Orthogonal Pareto Memory Pools:**
    - `memory_safety`: Buffer overflows, use-after-free, double-free.
@@ -158,7 +153,7 @@ Instead of passing natural language transcripts to an LLM, our **Graph-Powered G
 
 Graded directly within the Google ADK CLI evaluation sandbox (`agents-cli eval grade` across 83 cases):
 
-| Evaluation Metric | Unadapted Baseline | Generic ADK LLM Optimizer | Graph-Powered GEPA Reflector | Net Improvement |
+| Evaluation Metric | Unadapted Baseline | Generic ADK LLM Optimizer | BARRED-Neurosymbolic (Graph-GEPA) | Net Improvement |
 | :--- | :--- | :--- | :--- | :--- |
 | **Mean Tokens / Valid Accept ($H_{1,Y}$)** | $99,104.4$ tokens | ~$75,000$ tokens | **$33,401.4$ tokens** | **$66.30\%$ Token Reduction** |
 | **Diagnostic Reflection Cost** | ~$35,000$ tokens/step | ~$25,000$ tokens/step | **$0$ LLM Tokens (Local AST)** | **$100\%$ Diagnostic Free** |
@@ -180,14 +175,14 @@ We observed a phenomenon identical to the August 2026 Black Hat disclosures: **L
 - When an LLM was used to audit another LLM, the system collapsed into an ungrounded "slop-vestigation."
 
 ### 4.3 The Solution: The 4 Hard Anti-Gaming Invariants (INV-1..4)
-We stripped the LLM judge of its authority to decide final acceptance. We codified the **Authoritative Acceptance Contract** in `scenarios/debate/offline_b_gate.py`:
+We stripped the LLM judge of its authority to decide final acceptance. We codified the **Authoritative Acceptance Contract** in `invariants.py`:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                   The 4 Anti-Gaming Invariants Decision Gate                           │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                        │
-│   Attempt Logs       Invariant Evaluation (offline_b_gate.py)         Acceptance       │
+│   Attempt Logs       Invariant Evaluation (invariants.py)             Acceptance       │
 │   ┌────────────┐     ┌──────────────────────────────────────────┐     ┌─────────────┐  │
 │   │ Verifier   │────►│ INV-1: accepted_logic_error_rate == 0.0  │────►│ ACCEPTED    │  │
 │   │ Verdict,   │     │ INV-2: b2_anchor_match_rate >= 0.80      │     │ PROVENANCE  │  │
@@ -216,14 +211,14 @@ Connecting directly to modern production agent principles, we solved five major 
 
 ### 5.1 Principle 1: Guardrails as Middleware, Not Per-Agent Code
 Putting safety rules into every agent’s system prompt makes prompts bloated, brittle, and vulnerable to prompt injection.
-- **Our Implementation:** In `barred-fleet`, safety is enforced at the network and service boundary using **Google Cloud Model Armor** and **Agent Gateway** (`SPEC_BARRED_FLEET_MODEL_ARMOR_INTEGRATION_V1.md`, `SPEC_BARRED_FLEET_AGENT_GATEWAY_CLOUD_INTEGRATION_V1.md`). Inputs and output artifacts are screened *before* model invocation and *before* storage promotion.
+- **Our Implementation:** In `barred-fleet`, safety is enforced at the network and service boundary using **Google Cloud Model Armor** and **Agent Gateway**. Inputs and output artifacts are screened *before* model invocation and *before* storage promotion.
 
 ### 5.2 Principle 2: Ephemeral Containers & Decoupled State
 Cloud Run containers are stateless and ephemeral. Storing debate state in local container memory or local JSON files leads to silent state loss upon container scale-down.
 - **Our Implementation:**
-  - Run metadata is indexed in **Firestore Native** (`projects/gem-creation/databases/barred-fleet`).
-  - Raw attempts, cassettes, and receipts are persisted in **Private Google Cloud Storage** (`gs://gem-creation-barred-fleet-artifacts`).
-  - The Cloud Run service operates with a dedicated, least-privilege service account (`barred-fleet-runtime@gem-creation.iam.gserviceaccount.com`).
+  - Run metadata is indexed in **Firestore Native**.
+  - Raw attempts, cassettes, and receipts are persisted in **Private Google Cloud Storage**.
+  - The Cloud Run service operates with a dedicated, least-privilege service account.
 
 ### 5.3 Principle 3: Human Approval Must Live Outside the Agent Tool Surface
 A critical architectural lesson emerged when designing automated remediation tools and our companion `AgentFence` WebMCP prototype:
@@ -263,6 +258,7 @@ By anchoring our system in what was actually measured rather than what was fashi
 - [FRONTIER_SWARM_INCIDENT_ANALYSIS_AND_BARRED_DEFENSIVE_BLUEPRINT.md](FRONTIER_SWARM_INCIDENT_ANALYSIS_AND_BARRED_DEFENSIVE_BLUEPRINT.md): Frontier swarm incident mapping and defensive blueprint.
 - [EVALUATION_DISCIPLINE_GUIDE.md](EVALUATION_DISCIPLINE_GUIDE.md): The 4 Anti-Gaming Invariants and continuous testing standards.
 - [MULTIAGENT_VULNERABILITY_SWARM_HYPOTHESES.md](MULTIAGENT_VULNERABILITY_SWARM_HYPOTHESES.md): Formal statistical hypotheses ($H_{1,Y}, H_{1,Q}, H_{1,C}, H_{1,T}$) and condition tests C0–C4.
-- [`graphify_flow_extractor.py`](../scenarios/debate/graphify_flow_extractor.py): Tree-sitter C/Python data-flow reachability extractor.
-- [`offline_b_gate.py`](../scenarios/debate/offline_b_gate.py): Deterministic B-gate invariant validation engine.
-- [`reflector_agent.py`](../scenarios/debate/reflector_agent.py): Graph-Powered GEPA Pareto reflector.
+- [`ast_flow.py`](../src/barred_neurosymbolic/ast_flow.py): Tree-sitter C/Python data-flow reachability extractor.
+- [`invariants.py`](../src/barred_neurosymbolic/invariants.py): Deterministic B-gate invariant validation engine.
+- [`reachability.py`](../src/barred_neurosymbolic/reachability.py): Fail-closed AST reachability evaluator.
+- [`reflector.py`](../src/barred_neurosymbolic/reflector.py): Graph-Powered GEPA Pareto reflector.
