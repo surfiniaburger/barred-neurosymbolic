@@ -11,7 +11,7 @@ A 3-part technical deep-dive series breaking down empirical lessons, token optim
 **Theme:** Neurosymbolic GEPA Pareto Prompt Reflection vs. LLM-Only Debate Cycles
 
 ```markdown
-We cut token consumption by 66.3% in our multi-agent debate architecture.
+We cut token consumption by 66.30% in our multi-agent debate architecture.
 
 Not by using a smaller model.
 Not by aggressively truncating prompt history.
@@ -23,17 +23,17 @@ In traditional multi-agent architectures (like typical Generator-Debater swarms)
 1. Generator produces code or an analysis.
 2. Reviewer LLM outputs paragraphs of verbose feedback ("Consider checking if buffer index exceeds max bounds in function X...").
 3. Generator reads the verbose review and generates another expensive full response.
-4. Over multiple iterative debate rounds, token costs snowball ($99,104 tokens/accepted report on average).
+4. Over multiple iterative debate rounds, token costs snowball ($99,104.4 tokens/accepted run on average).
 
 We re-architected this into a Neurosymbolic Pareto Reflection Pipeline (GEPA):
-⚡ Step 1: An offline Tree-sitter AST parser evaluates dataflow reachability from source to sink in <50ms (0 LLM tokens).
+⚡ Step 1: Local Tree-sitter AST extraction via extract_graphify_flow_snapshot paired with deterministic reachability evaluation in <50ms (0 LLM tokens).
 ⚡ Step 2: If a sanitizer is missing or targeting the wrong variable, the deterministic engine emits an exact AST failure bucket (e.g. `B_SANITIZER_MISMATCH` or `B_SANITIZER_TARGET_MISMATCH`).
 ⚡ Step 3: The reflection engine converts this into an atomic, structured 15–30 token micro-prompt telling the generator exactly which AST node requires structural guard enclosure.
 
 The result across 83 graded multi-round evaluations:
 📉 Token consumption plunged from 99,104.4 tokens to 33,401.4 tokens per accepted run (a 66.30% net drop).
 🎯 1-round repair rate jumped to 71.4% (5 out of 7 failures successfully patched in the very first refinement cycle, +42.9 percentage points over baseline).
-⏱️ Diagnostic latency dropped from 3.5s–8.0s remote API calls to 10ms–50ms local CPU execution (~70x–800x speedup).
+⏱️ Diagnostic latency dropped from 3.5s–8.0s remote API calls to 10ms–50ms local CPU execution (~70x–800x speedup, median ~100x).
 
 When building agent swarms, don't use LLMs for tasks that abstract syntax trees and static analysis solved decades ago.
 
@@ -107,10 +107,10 @@ We engineered 4 Anti-Gaming Invariants (INV-1 through INV-4) into an offline, fa
 
 The result?
 ⚡ 0.0000 logic error contamination among accepted rows across 83 graded cases.
-⚡ 66.3% net token reduction (from 99,104 down to 33,401 tokens per accepted report).
+⚡ 66.30% net token reduction (from 99,104.4 down to 33,401.4 tokens per accepted run).
 ⚡ Zero LLM tokens for local AST failure extraction (<50ms local compute).
 
-Stop letting LLMs grade their own homework. Neurosymbolic architectures give you the semantic reasoning of generative AI with the deterministic guarantees of formal compilers.
+Stop letting LLMs grade their own homework. Neurosymbolic architectures give you the semantic reasoning of generative AI with deterministic, auditable structural checks and fail-closed B-gates.
 
 We’ve open-sourced the Tree-sitter AST dataflow reachability engine, invariant validator, and Pareto reflector:
 🔗 Code & Benchmark Post-Mortem: https://github.com/surfiniaburger/barred-neurosymbolic

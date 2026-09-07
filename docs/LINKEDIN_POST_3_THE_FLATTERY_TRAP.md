@@ -35,10 +35,10 @@ We engineered 4 Anti-Gaming Invariants (INV-1 through INV-4) into an offline, fa
 
 The result?
 ⚡ 0.0000 logic error contamination among accepted rows across 83 graded cases.
-⚡ 66.3% net token reduction (from 99,104 down to 33,401 tokens per accepted report).
+⚡ 66.30% net token reduction (from 99,104.4 down to 33,401.4 tokens per accepted run).
 ⚡ Zero LLM tokens for local AST failure extraction (<50ms local compute).
 
-Stop letting LLMs grade their own homework. Neurosymbolic architectures give you the semantic reasoning of generative AI with the deterministic guarantees of formal compilers.
+Stop letting LLMs grade their own homework. Neurosymbolic architectures give you the semantic reasoning of generative AI with deterministic, auditable structural checks and fail-closed B-gates.
 
 We’ve open-sourced the Tree-sitter AST dataflow reachability engine, invariant validator, and Pareto reflector:
 🔗 Code & Benchmark Post-Mortem: https://github.com/surfiniaburger/barred-neurosymbolic
@@ -67,7 +67,7 @@ Attach the following graphic or infographic slide to maximize organic LinkedIn f
                                                            │
                                                            ▼
                                                 8.2% Logic Error Contamination
-                                                99k Tokens / Decision
+                                                99.1k Tokens / Decision
 
   ─────────────────────────────────────────────────────────────
 
@@ -85,7 +85,7 @@ Attach the following graphic or infographic slide to maximize organic LinkedIn f
                                                            │
                                                            ▼
                                                 0.0000 Error Contamination
-                                                33k Tokens (66.3% Drop)
+                                                33.4k Tokens (66.30% Drop)
 ```
 
 ---
