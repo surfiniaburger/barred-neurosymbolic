@@ -109,7 +109,7 @@ The Epistemic Graph strictly delineates three distinct knowledge tiers:
 
 Instead of instructing an LLM to *"think hard about safety"* (which burns thousands of tokens on generic prose), the Epistemic Graph outputs **structured curiosity directives**:
 
-```
+```text
                        CHANGE PROPOSAL
                               │
                               ▼
@@ -120,8 +120,9 @@ Instead of instructing an LLM to *"think hard about safety"* (which burns thousa
    CERTAIN                UNCERTAIN                UNKNOWN
       │                       │                       │
       ▼                       ▼                       ▼
-   Proceed                Investigate              Escalate /
-  to B-Gate            Curiosity Bucket            Fail-Closed
+Proceed to Gate          Investigate              Escalate /
+   Pipeline            Curiosity Bucket          Fail-Closed
+(B -> I -> V)
 ```
 
 ### The 5 Uncertainty Buckets:
@@ -165,7 +166,7 @@ Each micro-graph remains small, deterministic, isolated, and strictly fail-close
 
 We expand the acceptance contract from a single B-Gate into three orthogonal gates:
 
-```
+```text
                               Proposed Transformation
                                          │
         ┌────────────────────────────────┼────────────────────────────────┐
