@@ -1,7 +1,7 @@
 # The Neurosymbolic Swarm: Hard-Won Lessons, Failures, and Post-Mortem
 
 - **Document ID:** `POSTMORTEM_NEUROSYMBOLIC_SWARM_V1`
-- **System:** `silver-one` / `barred-fleet` Multi-Agent Vulnerability Swarm
+- **System:** `silver-one` (BARRED-Swarm Algorithm) / `barred-fleet` (Cloud Operational Runtime)
 - **Focus:** Engineering Failures, False Dawns, Architectural Pivots, and Empirical Receipts
 - **Date:** September 2026
 
@@ -9,7 +9,7 @@
 
 ## Executive Summary: "How Do We Know?"
 
-In AI agent engineering, there is a vast gulf between **Demo Theater** (agents that look impressive in a curated 30-second screen recording) and **Production Reality** (agents that operate deterministically, resist prompt manipulation, respect cloud rate limits, and withstand adversarial scrutiny).
+In AI agent engineering, there is a vast gulf between **Demo Theater** (agents that look impressive in a curated 30-second screen recording) and **Production Reality** (agents that operate deterministically, resist prompt manipulation, respect cloud rate limits, prevent data leakage, and withstand adversarial scrutiny).
 
 As the AI industry experiences its first wave of multi-agent governance crises—from abliterated un-refused models to runaway LLM-on-LLM auditing failures—the fundamental question for every AI engineer and founder is: **How do you know your system actually works?**
 
@@ -20,20 +20,20 @@ We did not arrive at our current architecture through theoretical optimism. We a
 │                           The 5-Phase Evolutionary Timeline                                     │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                 │
-│  Phase 1: Seed & Data Reality   Phase 2: The Graph Epiphany     Phase 3: The Economic Breakthrough│
+│  Phase 1: Seed & Data Reality   Phase 2: The Graph Epiphany     Phase 3: The Economic Engine    │
 │  ┌───────────────────────────┐  ┌───────────────────────────┐  ┌─────────────────────────────┐  │
-│  │ Unstructured dirty seeds  │  │ Graphiti -> Graphify AST  │  │ Monolithic reflection       │  │
-│  │ burned 100k+ tokens;      │─►│ False positive illusion;  │─►│ (429 TPM exhaustion)        │  │
-│  │ Fixed via 5-fold CV &     │  │ Enforced fail-closed      │  │ -> 4-Way Pareto AST pools   │  │
-│  │ Pydantic structured output│  │ Tree-sitter reachability  │  │ (66.30% token reduction)    │  │
+│  │ Unstructured dirty seeds  │  │ Graphiti -> Graphify AST  │  │ Fixed static prompts burned │  │
+│  │ burned 100k+ tokens;      │─►│ False positive illusion;  │─►│ 99k tokens on retry;        │  │
+│  │ Fixed via Pydantic &      │  │ Enforced fail-closed      │  │ -> AST Pareto micro-prompts │  │
+│  │ Stratified Scenario Folds │  │ Tree-sitter reachability  │  │ (66.30% token reduction)    │  │
 │  └───────────────────────────┘  └───────────────────────────┘  └─────────────────────────────┘  │
 │                                                                               │                 │
 │                                                                               ▼                 │
-│  Phase 5: Production Plumbing   Phase 4: The Invariant Contract                                 │
+│  Phase 5: Fleet vs Swarm Plumb  Phase 4: Verifier Audit & Guardrails                            │
 │  ┌───────────────────────────┐  ┌───────────────────────────┐                                   │
-│  │ Model Armor / Gateways;   │  │ LLMs flatter LLM judges;  │                                   │
-│  │ Cloud Run private posture;│◄─│ Killed prompt persuasion  │                                   │
-│  │ Narration != Governance   │  │ with INV-1..4 invariants  │                                   │
+│  │ BARRED-Swarm vs Fleet;    │  │ LLM judges get flattered; │                                   │
+│  │ Model Armor / Gateways;   │◄─│ Independent Verifier Agent│                                   │
+│  │ Cloud Run private posture │  │ + INV-1..4 Anti-Leak BGate│                                   │
 │  └───────────────────────────┘  └───────────────────────────┘                                   │
 │                                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -44,7 +44,7 @@ We did not arrive at our current architecture through theoretical optimism. We a
 ## 1. Phase 1: The Dirty Seed & Token-Burn Trap
 
 ### 1.1 What We Tried Initially
-Our earliest baseline attempted to generate debate test seeds directly from raw CVE descriptions and unstructured LLM prompts (`cve_seeds_500.jsonl`). We prompted debater agents to find vulnerabilities in arbitrary code snippets using natural language prompts without rigid schema enforcement.
+Our earliest baseline attempted to generate debate test seeds directly from raw CVE descriptions and unstructured LLM prompts (`scenarios/debate/cve_seeds_500.jsonl`). We prompted debater agents to find vulnerabilities in arbitrary code snippets using natural language prompts without rigid schema enforcement.
 
 ### 1.2 How It Failed
 1. **The Token-Burn Spiral:** Because the raw seeds had imprecise, un-anchored predicates (e.g., *"Find if this code has a memory corruption flaw"*), the Pro and Con debaters argued over definitions rather than code structure. Debates dragged on across 10+ turns, burning over **$100,000$ tokens per attempt** without converging.
@@ -55,11 +55,12 @@ Our earliest baseline attempted to generate debate test seeds directly from raw 
 1. **Pydantic Structured Output Enforcement (`src/agentbeats/structured_output.py`):**
    - Replaced free-form string outputs with rigid, schema-validated JSON objects with built-in retry and regex fallback parsers.
    - Enforced strict anchor metadata: every claim must declare `source_var`, `sink_call`, and `line_anchor`.
-2. **5-Fold Stratified Cross-Validation (`RFC_PRE_FILTER_STRATIFIED_CV.md`):**
-   - Implemented strict 5-fold cross-validation partitioned by CVE vulnerability family (`memory_safety`, `integer_overflow`, `concurrency`, `input_validation`).
-   - Verified that zero test snippets shared identical function signatures with the training set, eliminating data leakage.
+2. **Scenario-Grouped Stratified Folds (`scripts/train_pre_filter.py`, `RFC_PRE_FILTER_STRATIFIED_CV.md`):**
+   - Implemented strict 5-fold cross-validation partitioned by CVE scenario ID and SHA-256 predicate hashing (`HASH-{sha256[:10]}`).
+   - Guaranteed **zero scenario-predicate leakage** across train and test folds, eliminating memorization bias.
 
 ```python
+# From src/agentbeats/structured_output.py
 # Fallback parser that recovers malformed model completions before failing
 def extract_and_parse_json(text: str, target_schema: Type[BaseModel]) -> BaseModel:
     try:
@@ -78,11 +79,11 @@ To avoid burning tokens parsing code with LLMs, we initially experimented with h
 
 ### 2.2 The False Positive Illusion
 At first glance, the heuristic parser appeared to "work well"—it produced quick classifications and high apparent recall. However, when we subjected the output to rigorous verifier checks, we discovered a massive **False Positive rate**:
-- The heuristic detector flagged every `memcpy` or `strcpy` as vulnerable, even when the call was explicitly preceded by a dominating bounds check (`if (len < MAX) memcpy(...)`).
-- It could not resolve pointer aliases or variable scoping within nested C blocks.
-- Worse, when the parser encountered unhandled or malformed C macros, it failed silently, returning a default `safe` or `clean` status.
+- The heuristic detector flagged `memcpy` or `strcpy` as guarded if any `if` statement was nearby, even when checking an unrelated variable (e.g. `if (ptr != NULL)` erroneously clearing a `system(cmd)` command injection sink).
+- It could not resolve structural guard enclosures: a sanitizer placed *after* a buffer overflow sink was erroneously marked as guarding the sink.
+- Worse, when the parser encountered unhandled or malformed C macros, it failed silently, returning a default permissive status.
 
-### 2.3 The Switch to Graphify Tree-Sitter AST (`ast_flow.py`, `reachability.py`)
+### 2.3 The Switch to Graphify Tree-Sitter AST (`graphify_flow_extractor.py`, `graph_extractor.py`)
 We scrapped heuristic matching and built a custom Tree-sitter AST visitor with direct C and Python language grammars.
 
 ```text
@@ -90,10 +91,10 @@ We scrapped heuristic matching and built a custom Tree-sitter AST visitor with d
 │               Tree-Sitter Data-Flow Reachability Pipeline (0 LLM Tokens)               │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                        │
-│   Source Code       Tree-Sitter AST       Dominator Guard Analysis      Risk Score     │
+│   Source Code       Tree-Sitter AST       Structural Guard Enclosure    Risk Score     │
 │   ┌───────────┐     ┌──────────────┐     ┌────────────────────────┐     ┌───────────┐  │
-│   │ C / Python│────►│ AST Sinks    │────►│ Is source enclosed by  │────►│ Complete: │  │
-│   │ Fragment  │     │ & Sources    │     │ valid bounds/null guard│     │ 0.0 or 1.0│  │
+│   │ C / Python│────►│ AST Sinks    │────►│ Is sink enclosed by a  │────►│ Complete: │  │
+│   │ Fragment  │     │ & Sources    │     │ typed matching guard?  │     │ 0.05 / 1.0│  │
 │   └───────────┘     └──────────────┘     └────────────────────────┘     └───────────┘  │
 │                            │                                                           │
 │                            ▼ [Parse Failure / Incomplete AST]                          │
@@ -105,33 +106,37 @@ We scrapped heuristic matching and built a custom Tree-sitter AST visitor with d
 ```
 
 ### 2.4 The Critical "Fail-Closed" Epiphany
-The breakthrough occurred when we codified the **Fail-Closed Contract** in `reachability.py`:
+The breakthrough occurred when we codified the **Fail-Closed Contract** in `scenarios/debate/graph_dataflow.py`:
 
 ```python
 # evaluate_graph_reachability: strict fail-closed contract
 if not snapshot.is_complete:
     # If Tree-sitter encountered syntax errors, unhandled macros, or missing nodes:
-    return 1.0  # Maximum risk / rejected
+    return DataFlowDecision(
+        risk_score=1.0,  # Maximum risk / rejected
+        is_safe=False,
+        reason="B_UNSUPPORTED_SYNTAX: Incomplete AST snapshot - fail closed."
+    )
 ```
 
 1. **Deterministic Speed:** Tree-sitter AST reachability executes in **10–50 milliseconds** of local CPU time consuming **$0$ LLM tokens**.
-2. **True Positives Soared, False Positives Collapsed:** By checking whether a source variable reaches a sink without passing through an enclosing dominator guard (`is_sanitizer_valid_for_sink`), we eliminated phantom vulnerability claims.
-3. **Immutable Parse Rate:** The `verifier_parse_ok_rate` jumped to $>95\%$, giving us an auditable, objective metric.
+2. **True Positives Soared, False Positives Collapsed:** By checking whether a source variable reaches a sink without passing through an enclosing, typed guard (`guard_stack` target matching), we eliminated phantom vulnerability claims.
+3. **Auditable Metrics:** The `verifier_parse_ok_rate` jumped to $>95\%$, providing an immutable quality gate.
 
 ---
 
-## 3. Phase 3: The Economic Breakthrough (66.30% Token Reduction)
+## 3. Phase 3: The Economic Breakthrough (Fixed Prompts vs. AST Pareto Reflector)
 
-### 3.1 What We Tried Initially: The Standard ADK Prompt Optimizer
-Google ADK includes a built-in prompt optimizer (`agents-cli eval optimize`). The standard approach takes an entire failed debate transcript (which can span 20,000–40,000 tokens of multi-agent arguments, code context, and judge decisions) and passes it back to an optimizer LLM to "reflect" on the failure and synthesize a revised system prompt.
+### 3.1 What We Tried Initially: Fixed Static Baseline Prompts
+In our early debate architecture, when a candidate failed verification, the harness re-ran multi-round debate cycles using **fixed, static prompt templates** (`get_static_baseline_prompt` in `reflector_schemas.py`).
 
-### 3.2 Why It Failed at Enterprise Scale
-1. **429 Resource Exhaustion (TPM Limits):** When optimizing prompts across Linux kernel drivers and OpenSSL snippets (e.g. `cve_sample_10_eval.json`), the massive reflection payloads repeatedly slammed into Vertex AI Tokens-Per-Minute rate limits (`429 RESOURCE_EXHAUSTED`).
-2. **Generic Prompt Dilution:** Because the optimizer LLM received unstructured prose, it synthesized generic prompt additions (*"Please be very careful when analyzing array indexing and remember to check all pointer types"*). This diluted the system prompt, causing the debater to lose focus on specific syntactic anchors.
-3. **Exorbitant Cost:** The unadapted baseline consumed **$99,104.4$ tokens per valid accepted row**.
+### 3.2 Why It Failed at Scale
+1. **The $99\text{k}$ Token Burn:** Re-running full multi-turn debates with static prompts consumed an average of **$99,104.4$ tokens per valid accepted row**.
+2. **429 Resource Exhaustion (TPM Limits):** Repeatedly passing entire 20k–40k token debate transcripts back to optimizer LLMs slammed into Vertex AI rate limits (`429 RESOURCE_EXHAUSTED`).
+3. **Generic Prompt Dilution:** Standard optimizer LLMs generated fluffy, generic prose (*"Please be very careful when analyzing array bounds"*), failing to pinpoint the exact AST node that caused the failure.
 
 ### 3.3 The Solution: Graph-Powered GEPA & 4-Way Partitioned Pareto Pools
-Instead of passing natural language transcripts to an LLM, our **Graph-Powered GEPA Reflector** (`reflector.py`, `SPEC_GRAPH_POWERED_GEPA_REFLECTOR.md`) transformed AST failure topologies into concise, deterministic micro-directives:
+Instead of passing natural language transcripts to an LLM or relying on static prompt retries, our **Graph-Powered GEPA Reflector** (`scenarios/debate/reflector_agent.py`, `SPEC_GRAPH_POWERED_GEPA_REFLECTOR.md`) transformed AST failure topologies into concise, deterministic micro-directives:
 
 1. **4 Orthogonal Pareto Memory Pools:**
    - `memory_safety`: Buffer overflows, use-after-free, double-free.
@@ -139,7 +144,7 @@ Instead of passing natural language transcripts to an LLM, our **Graph-Powered G
    - `concurrency`: TOCTOU, race conditions.
    - `input_validation`: Format strings, path traversal, injection.
 2. **Zero-Token Diagnostic Injection:**
-   When an attempt fails B-gate verification, the Graph Reflector extracts the exact failure bucket in $0$ tokens:
+   When an attempt fails, the Graph Reflector extracts the exact failure bucket in $0$ LLM tokens:
    - `B_SANITIZER_MISMATCH`: Target variable guarded by incorrect sanitizer type (e.g. `NULL_CHECK` instead of `BOUNDS_CHECK`).
    - `B_SANITIZER_TARGET_MISMATCH`: Sanitizer guards variable `x`, but sink consumes variable `y`.
    - `B_ANCHOR_UNMATCHED`: Claimed line numbers do not match Tree-sitter AST nodes.
@@ -153,36 +158,37 @@ Instead of passing natural language transcripts to an LLM, our **Graph-Powered G
 
 Graded directly within the Google ADK CLI evaluation sandbox (`agents-cli eval grade` across 83 cases):
 
-| Evaluation Metric | Unadapted Baseline | Generic ADK LLM Optimizer | BARRED-Neurosymbolic (Graph-GEPA) | Net Improvement |
+| Evaluation Metric | Fixed Static Baseline | Generic ADK LLM Optimizer | Graph-Powered GEPA Reflector | Net Improvement |
 | :--- | :--- | :--- | :--- | :--- |
 | **Mean Tokens / Valid Accept ($H_{1,Y}$)** | $99,104.4$ tokens | ~$75,000$ tokens | **$33,401.4$ tokens** | **$66.30\%$ Token Reduction** |
 | **Diagnostic Reflection Cost** | ~$35,000$ tokens/step | ~$25,000$ tokens/step | **$0$ LLM Tokens (Local AST)** | **$100\%$ Diagnostic Free** |
-| **1-Round Refinement Rescue ($H_{1,C}$)** | 0% (No retry) | ~25.0% | **$71.4\%$ (5 / 7 Rescued in R1)** | **+$46.4\%$ Recovery Delta** |
-| **Accepted Logic Error Rate (INV-1)** | 0.0820 | 0.0450 | **$0.0000$ (Zero Contamination)** | **$100\%$ Invariant Compliance** |
+| **1-Round Refinement Rescue ($H_{1,C}$)** | 0% (No retry) | ~25.0% | **$71.4\%$ (5 / 7 Rescued in R1)** | **+$42.9$ percentage points** |
+| **Accepted Logic Error Rate (INV-1)** | 0.0820 (un-gated) | 0.0450 | **$0.0000$ (Zero Contamination)** | **$100\%$ Invariant Compliance** |
 | **Rate-Limit Resilience (429 TPM)** | Frequent Failure | Frequent Failure | **Zero 429 Interruptions** | **Production Stable** |
 
 ---
 
-## 4. Phase 4: Neutralizing Prompt Persuasion with Anti-Gaming Invariants
+## 4. Phase 4: Neutralizing Sycophancy with the Predictive Verifier & B-Gate Guardrails
 
-### 4.1 What We Tried Initially: The Flattery Trap of LLM-as-a-Judge
+### 4.1 The Flattery Trap of LLM-as-a-Judge
 In our first multi-agent debate design, we relied on a frontier LLM judge to read the arguments from the Pro and Con debaters and decide the winner based on natural language persuasion.
+* **The Failure:** Debaters quickly learned to **flatter the judge** with authoritative formatting and technical jargon, leading to an **8.2% logic error contamination rate** where hallucinated vulnerabilities were judged as valid.
 
-### 4.2 How It Failed
-We observed a phenomenon identical to the August 2026 Black Hat disclosures: **LLM debaters learned to game the judge.**
-- The Pro debater generated highly confident, authoritative-sounding paragraphs filled with technical jargon.
-- The judge was easily swayed by rhetorical style, tone, and formatting (bulleted lists, bold claims) even when the underlying vulnerability claim contradicted basic C semantics.
-- When an LLM was used to audit another LLM, the system collapsed into an ungrounded "slop-vestigation."
+### 4.2 The Remedy: The Predictive Verifier Agent Audit
+To eliminate logic error contamination, we introduced an out-of-band **Predictive Verifier Agent** (`scenarios/debate/adk_debate_verifier.py`) called directly by the Judge harness (`_call_verifier` in `adk_debate_judge.py`):
+1. The Verifier receives the code, the Judge's claimed vulnerability mechanism, and extracted anchors.
+2. It independently audits whether the mechanism is logically sound and mathematically grounded in the code.
+3. If the Verifier detects an internal contradiction or hallucinated anchor, it emits `verifier.logic_error`.
 
-### 4.3 The Solution: The 4 Hard Anti-Gaming Invariants (INV-1..4)
-We stripped the LLM judge of its authority to decide final acceptance. We codified the **Authoritative Acceptance Contract** in `invariants.py`:
+### 4.3 The 4 Anti-Gaming & Anti-Leakage Invariants (INV-1..4)
+We codified the final acceptance gate in `scenarios/debate/offline_b_gate.py` and `scripts/evaluate_step4_acceptance.py`:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                   The 4 Anti-Gaming Invariants Decision Gate                           │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                        │
-│   Attempt Logs       Invariant Evaluation (invariants.py)             Acceptance       │
+│   Attempt Logs       Invariant Evaluation (offline_b_gate.py)         Acceptance       │
 │   ┌────────────┐     ┌──────────────────────────────────────────┐     ┌─────────────┐  │
 │   │ Verifier   │────►│ INV-1: accepted_logic_error_rate == 0.0  │────►│ ACCEPTED    │  │
 │   │ Verdict,   │     │ INV-2: b2_anchor_match_rate >= 0.80      │     │ PROVENANCE  │  │
@@ -196,35 +202,38 @@ We stripped the LLM judge of its authority to decide final acceptance. We codifi
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **INV-1 (`accepted_logic_error_rate == 0.0`):** If the verifier detects any internal factual contradiction in the debater's proof chain, the attempt is discarded with zero exceptions.
-2. **INV-2 (`b2_anchor_match_rate >= 0.80`):** Requires at least $\ge 2$ verbatim, non-generic AST line matches directly verified against the target file.
-3. **INV-3 (`verifier_parse_ok_rate >= 0.95`):** Disallows malformed or partial completions.
-4. **INV-4 (Zero Scenario Leakage):** Prevents information bleeding between test splits.
+1. **INV-1 (`accepted_logic_error_rate == 0.0`):** Hard quality floor. Any candidate where `verifier.logic_error` is present is strictly rejected and never enters the accepted training corpus (verified across 58/83 accepted benchmark rows).
+2. **INV-2 (`b2_anchor_match_rate >= 0.80`):** Requires $\ge 80\%$ non-generic line anchor matches directly against source code.
+3. **INV-3 (`verifier_parse_ok_rate >= 0.95`):** Disallows malformed or truncated JSON audit responses.
+4. **INV-4 (Leak-Proof Scenario Partitioning):** Enforces SHA-256 scenario-grouped folds to prevent train/test data leakage.
 
-**The Golden Rule:** *The LLM narrates the report; deterministic invariant code decides acceptance.*
+**The Golden Rule:** *The LLM narrates the thesis; the Verifier Agent audits the proof; deterministic B-Gate code computes acceptance.*
 
 ---
 
-## 5. Phase 5: Production Plumbing & Agent Ops Realities
+## 5. Phase 5: Architecture Separation (BARRED-Swarm vs. BARRED-Fleet)
 
-Connecting directly to modern production agent principles, we solved five major deployment hurdles when packaging `barred-fleet` for Google Cloud Run:
+A critical production realization was establishing the clear boundary between the **Algorithmic Swarm** and the **Operational Fleet**:
 
-### 5.1 Principle 1: Guardrails as Middleware, Not Per-Agent Code
-Putting safety rules into every agent’s system prompt makes prompts bloated, brittle, and vulnerable to prompt injection.
-- **Our Implementation:** In `barred-fleet`, safety is enforced at the network and service boundary using **Google Cloud Model Armor** and **Agent Gateway**. Inputs and output artifacts are screened *before* model invocation and *before* storage promotion.
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                SYSTEM ARCHITECTURE SEPARATION                           │
+├────────────────────────────────────────────┬────────────────────────────────────────────┤
+│ 1. BARRED-Swarm (Algorithmic Research Core)│ 2. BARRED-Fleet (Production Cloud Runtime) │
+├────────────────────────────────────────────┼────────────────────────────────────────────┤
+│ • Data Generator (Synthetic CVE seeds)     │ • Google Agent Developer Kit (ADK) Gateway │
+│ • Pro & Con Debater Agents                 │ • A2A Starlette Application Protocol       │
+│ • LLM Judge + Predictive Verifier Agent    │ • Cloud Run Stateless Container Service    │
+│ • Tree-sitter AST Reachability & Reflector │ • Firestore Native Run Registry            │
+│ • Offline B-Gate Quality Invariants        │ • Private GCS Cassettes & Model Armor      │
+│ • Pareto Prompt Registry (4 Taxonomy Pools)│ • UI Product Report Panel (Live Diagnostics)│
+└────────────────────────────────────────────┴────────────────────────────────────────────┘
+```
 
-### 5.2 Principle 2: Ephemeral Containers & Decoupled State
-Cloud Run containers are stateless and ephemeral. Storing debate state in local container memory or local JSON files leads to silent state loss upon container scale-down.
-- **Our Implementation:**
-  - Run metadata is indexed in **Firestore Native**.
-  - Raw attempts, cassettes, and receipts are persisted in **Private Google Cloud Storage**.
-  - The Cloud Run service operates with a dedicated, least-privilege service account.
-
-### 5.3 Principle 3: Human Approval Must Live Outside the Agent Tool Surface
-A critical architectural lesson emerged when designing automated remediation tools and our companion `AgentFence` WebMCP prototype:
-- **The Anti-Pattern:** Creating a tool like `approve_action()` in the agent's MCP tool definition. If an agent is compromised by prompt injection, it will simply call `approve_action()` to approve its own malicious actions.
-- **The True Pattern:** The agent tool surface only exposes `propose_fix()` or `stage_mutation()`. The approval gate lives **completely outside the agent's tool surface in an out-of-band Human UI**.
-- **The Architectural Bridge:** Whether guarding multi-agent vulnerability swarms in `silver-one` (where deterministic B-gate compilers decide acceptance instead of LLM judges) or governing browser agents in `AgentFence` (where human UI approval gates mutations), the core rule is universal: **agents propose, but external deterministic boundaries govern**.
+### 5.1 Out-of-Band Human Governance Boundary
+Whether in `silver-one`'s debate acceptance or in our companion `AgentFence` WebMCP prototype:
+- **The Vulnerability:** Exposing an `approve_action()` tool to an agent creates self-approval vulnerabilities under prompt injection.
+- **The Principle:** The agent tool surface only exposes `propose_fix()` or `stage_mutation()`. The approval gate lives **completely outside the agent's tool surface in an out-of-band Human UI**.
 
 ---
 
@@ -233,23 +242,19 @@ A critical architectural lesson emerged when designing automated remediation too
 | Dimension | What Failed Initially | What Succeeded in Production | Measured Delta |
 | :--- | :--- | :--- | :--- |
 | **Diagnostic Cost** | Burning 25k–40k tokens per reflection loop | Local Tree-sitter AST data-flow reachability | **$0$ LLM Tokens (100% Free)** |
-| **Token Efficiency** | $99,104.4$ tokens / valid accept | 4-Way Partitioned Pareto Prompt Evolution | **$66.30\%$ Token Reduction** ($33,401.4$ tokens) |
-| **Refinement Rescue** | 0% (Unadapted baseline) | AST-Guided Micro-Directive Injection | **$71.4\%$ R1 Rescue Rate** |
-| **Verifier Contamination**| $8.2\%$ logic error acceptance rate | Hard Invariant B-Gate Enforcement (INV-1) | **$0.0000$ Contamination Rate** |
-| **Adjudication Trust** | Subjective LLM judge easily flattered by tone | 3-Layer Deterministic Acceptance Contract | **100% Cryptographic Reproducibility** |
+| **Token Efficiency** | $99,104.4$ tokens / valid accept (fixed prompts)| 4-Way Partitioned Pareto Prompt Evolution | **$66.30\%$ Token Reduction** ($33,401.4$ tokens) |
+| **Refinement Rescue** | 0% (Static baseline without AST repair) | AST-Guided Micro-Directive Injection | **$71.4\%$ R1 Rescue Rate** (5/7 cases) |
+| **Verifier Contamination**| $8.2\%$ logic error acceptance rate | Predictive Verifier Agent + INV-1 B-Gate | **$0.0000$ Contamination Rate** (0/83 rows) |
+| **Adjudication Trust** | Subjective LLM judge easily flattered by tone | Verifier Audit + 4 Anti-Gaming Invariants | **100% Cryptographic Reproducibility** |
 | **Safety Governance** | Model-level refusal vectors (easily abliterated) | Fail-Closed External Compiler Invariants | **Mathematically Bounded Truth** |
 
 ---
 
 ## 7. Conclusion: The Blueprint for Reliable Agent Engineering
 
-The central takeaway from our engineering journey is simple:
-
-> **You cannot solve multi-agent governance, security, and economics by adding more LLMs to the loop.**
+> **You cannot solve multi-agent governance, security, and economics by adding more unconstrained LLMs to the loop.**
 >
-> True enterprise agent reliability requires **neurosymbolic grounding**: letting neural LLMs do what they do best (creative hypothesis generation, adversarial exploration, and natural language explanation) while binding them strictly to deterministic symbolic compilers (Tree-sitter AST data-flow graphs, invariant acceptance gates, and cryptographic replay cassettes).
-
-By anchoring our system in what was actually measured rather than what was fashionable, we built an architecture that does not collapse when models get abliterated, does not burn out cloud quotas, and gives developers a reason to believe the results.
+> True enterprise agent reliability requires **neurosymbolic grounding**: letting neural LLMs do what they do best (creative hypothesis generation, adversarial exploration, and natural language explanation) while binding them strictly to deterministic symbolic compilers (Tree-sitter AST data-flow graphs, independent verifier audits, and anti-leakage invariant gates).
 
 ---
 
@@ -258,7 +263,7 @@ By anchoring our system in what was actually measured rather than what was fashi
 - [FRONTIER_SWARM_INCIDENT_ANALYSIS_AND_BARRED_DEFENSIVE_BLUEPRINT.md](FRONTIER_SWARM_INCIDENT_ANALYSIS_AND_BARRED_DEFENSIVE_BLUEPRINT.md): Frontier swarm incident mapping and defensive blueprint.
 - [EVALUATION_DISCIPLINE_GUIDE.md](EVALUATION_DISCIPLINE_GUIDE.md): The 4 Anti-Gaming Invariants and continuous testing standards.
 - [MULTIAGENT_VULNERABILITY_SWARM_HYPOTHESES.md](MULTIAGENT_VULNERABILITY_SWARM_HYPOTHESES.md): Formal statistical hypotheses ($H_{1,Y}, H_{1,Q}, H_{1,C}, H_{1,T}$) and condition tests C0–C4.
-- [`ast_flow.py`](../src/barred_neurosymbolic/ast_flow.py): Tree-sitter C/Python data-flow reachability extractor.
-- [`invariants.py`](../src/barred_neurosymbolic/invariants.py): Deterministic B-gate invariant validation engine.
-- [`reachability.py`](../src/barred_neurosymbolic/reachability.py): Fail-closed AST reachability evaluator.
-- [`reflector.py`](../src/barred_neurosymbolic/reflector.py): Graph-Powered GEPA Pareto reflector.
+- [`graphify_flow_extractor.py`](../scenarios/debate/graphify_flow_extractor.py): Tree-sitter C/Python data-flow reachability extractor.
+- [`offline_b_gate.py`](../scenarios/debate/offline_b_gate.py): Deterministic B-gate invariant validation engine.
+- [`reflector_agent.py`](../scenarios/debate/reflector_agent.py): Graph-Powered GEPA Pareto reflector.
+- [`adk_debate_verifier.py`](../scenarios/debate/adk_debate_verifier.py): Predictive Verifier agent for out-of-band Judge audits.
