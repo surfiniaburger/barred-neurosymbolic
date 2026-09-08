@@ -163,7 +163,7 @@ Graded directly within the Google ADK CLI evaluation sandbox (`agents-cli eval g
 | **Mean Tokens / Valid Accept ($H_{1,Y}$)** | $99,104.4$ tokens | ~$75,000$ tokens | **$33,401.4$ tokens** | **$66.30\%$ Token Reduction** |
 | **Diagnostic Reflection Cost** | ~$35,000$ tokens/step | ~$25,000$ tokens/step | **$0$ LLM Tokens (Local AST)** | **$100\%$ Diagnostic Free** |
 | **1-Round Refinement Rescue ($H_{1,C}$)** | 0% (No retry) | ~25.0% | **$71.4\%$ (5 / 7 Rescued in R1)** | **+$42.9$ percentage points** |
-| **Accepted Logic Error Rate (INV-1)** | 0.0820 (un-gated) | 0.0450 | **$0.0000$ (Zero Contamination)** | **$100\%$ Invariant Compliance** |
+| **Accepted Logic Error Rate (INV-1)** | 0.0820 (un-gated) | 0.0450 | **$0.0000$ (Zero Contamination)** | **$100\%$ INV-1 Compliance** |
 | **Rate-Limit Resilience (429 TPM)** | Frequent Failure | Frequent Failure | **Zero 429 Interruptions** | **Production Stable** |
 
 ---
