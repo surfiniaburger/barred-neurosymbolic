@@ -2,9 +2,9 @@
 
 [![CI: Tests](https://github.com/surfiniaburger/barred-neurosymbolic/actions/workflows/ci.yml/badge.svg)](https://github.com/surfiniaburger/barred-neurosymbolic/actions)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python: 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)]()
-[![Token Reduction: -66.30%](https://img.shields.io/badge/token%20reduction--66.30%25-success.svg)]()
-[![Logic Error Rate: 0.0000](https://img.shields.io/badge/logic%20error%20rate-0.0000-brightgreen.svg)]()
+[![Python: 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Token Reduction: 66.30%](https://img.shields.io/badge/token%20reduction-66.30%25-success.svg)](docs/ADK_OPTIMIZE_VS_GRAPH_GEPA_COMPARISON_REPORT.md)
+[![Logic Error Rate: 0.0000](https://img.shields.io/badge/logic%20error%20rate-0.0000-brightgreen.svg)](docs/EVALUATION_DISCIPLINE_GUIDE.md)
 
 ---
 
@@ -18,7 +18,7 @@
 By binding neural agents (adversarial Pro/Con debaters) to **out-of-band Predictive Verifiers** and **deterministic symbolic compilers** (Tree-sitter AST data-flow graphs, 4 hard anti-gaming & anti-leakage invariants, and 4-way partitioned Pareto prompt evolution), BARRED-Neurosymbolic achieves:
 - **$0$ LLM Diagnostic Overhead** (Local C/Python AST reachability in 10–50 ms).
 - **$66.30\%$ Measured Token Reduction** ($99,104.4 \rightarrow 33,401.4$ tokens per valid accepted result).
-- **$71.4\%$ Single-Round Rescue Rate** on failed debate attempts (+42.9 percentage points over baseline).
+- **$71.4\%$ Single-Round Rescue Rate** on failed debate attempts (5 / 7 rescued in R1, +42.9 percentage points over the 28.5% static baseline).
 - **$0.0000$ Logic Error Contamination Rate** (Strict verification invariant compliance across accepted corpus rows).
 
 ```text
