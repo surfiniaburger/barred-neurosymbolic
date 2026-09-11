@@ -214,6 +214,8 @@ Detection  ──►  Diagnosis  ──►  Patch Synthesis  ──►  Impact G
 
 ---
 
+---
+
 ## 8. Exposure Management vs. Vulnerability Management: Grounding Epistemic Impact in Transitive Attack Surfaces and Runtime Telemetry
 
 ### 8.1 The Flaw-Count Fallacy vs. Contextual Risk
@@ -223,7 +225,7 @@ Vulnerability management programs frequently encounter operational bottlenecks w
 3. **The DARPA AIxCC Accelerated Timeline:** As demonstrated during the semifinal round of DARPA’s Artificial Intelligence Cyber Challenge ([DARPA AIxCC](https://www.darpa.mil/news/2024/ai-cyber-challenge-cybersecurity)), autonomous Cyber Reasoning Systems successfully identified 22 synthetic vulnerabilities across critical real-world codebases (Jenkins, Linux kernel, Nginx, SQLite3, Apache Tika), automatically patched 15 of them, and responsibly disclosed an undiscovered bug in SQLite3. As automated tools accelerate vulnerability discovery and triage cycles, manual, context-blind patch queues become an operational bottleneck.
 
 ### 8.2 AST Code Reachability ($R_{\text{reach}}$) and Independent Epistemic Predicates
-Finding a vulnerable function in a dependency or codebase does not imply exposure. The neurosymbolic engine evaluates reachability and defensive state deterministically using Tree-Sitter AST dataflow extraction across strictly independent predicates:
+Finding a vulnerable function in a dependency or codebase does not imply exposure. The neurosymbolic engine evaluates reachability and defensive state deterministically using Tree-Sitter AST dataflow extraction across three strictly independent predicates:
 - **Untrusted Sources ($S$):** Network reads (`recv`, `recvfrom`), file streams (`fread`, `fgets`), environment variables (`getenv`), or deserializers (`cJSON_Parse`).
 - **Security-Sensitive Sinks ($K$):** 
   - `MEMORY_WRITE`: Memory manipulation and buffer writes (`memcpy`, `strcpy`, `snprintf`).
@@ -234,12 +236,13 @@ Finding a vulnerable function in a dependency or codebase does not imply exposur
 The three independent epistemic predicates are:
 1. **Reachability Predicate ($R_{\text{reach}}$):**
    $$R_{\text{reach}}(v) \in \{\text{PROVEN\_REACHABLE}, \text{UNKNOWN\_REACHABLE}, \text{PROVEN\_UNREACHABLE}\}$$
-   - A source-to-sink dataflow path is classified as $\text{PROVEN\_REACHABLE}$ whenever tainted input propagates into the sink argument vector (regardless of whether a guard exists).
-   - Incomplete ASTs, unresolvable pointer aliases, dynamic FFI calls, or unmapped macro expansions produce $\text{UNKNOWN\_REACHABLE}$, which **fails closed** ($\omega(R_{\text{reach}}) = 1.0$) and triggers Curiosity Bucket escalation.
+   - A dataflow path is classified as $\text{PROVEN\_REACHABLE}$ if and only if there exists a deterministic, verified execution witness connecting an active external or public program entrypoint through the untrusted source into the sink argument vector.
+   - When local tainted propagation exists but full entrypoint-to-source reachability or caller invocation cannot be established (such as uncalled static functions or unresolved caller closures), the path is classified as $\text{UNKNOWN\_REACHABLE}$ rather than receiving full exposure weight, and routes to Curiosity Bucket A for caller investigation.
+   - Incomplete ASTs, unresolvable pointer aliases, dynamic FFI calls, or unmapped macro expansions likewise produce $\text{UNKNOWN\_REACHABLE}$, which **fails closed** ($\omega(R_{\text{reach}}) = 1.0$) to avoid prematurely suppressing unverified attack vectors.
 2. **Guard Verification Predicate ($\text{GuardVerified}$):**
    $$\text{GuardVerified}(v) \in \{\text{VERIFIED\_COMPLETE}, \text{CANDIDATE\_ONLY}, \text{ABSENT}\}$$
    - Syntactic presence of an AST sanitizer (`RANGE_VALIDATION`, `BOUNDS_CHECK`, `NULL_CHECK`, `ALLOWLIST_CHECK`, `PATH_CONFINEMENT`) marks the guard as $\text{CANDIDATE\_ONLY}$.
-   - The guard is elevated to $\text{VERIFIED\_COMPLETE}$ if and only if it satisfies one of three completeness criteria: (a) path-complete symbolic verification, (b) verified invariant regression test evidence, or (c) active runtime enforcement proof demonstrating non-bypassable mediation.
+   - The guard is elevated to $\text{VERIFIED\_COMPLETE}$ if and only if it satisfies one of two completeness criteria: (a) path-complete symbolic verification proving that all execution paths leading to the sink are bounded without bypass or arithmetic overflow, or (b) active runtime enforcement proof demonstrating non-bypassable in-process or kernel-level mediation. Finite invariant regression tests remain exploratory evidence and are classified as $\text{CANDIDATE\_ONLY}$.
 3. **Asset Exposure Predicate ($\text{AssetExposed}$):**
    $$\text{AssetExposed}(v) \in \{\text{EXPOSED}, \text{UNKNOWN}, \text{ISOLATED}\}$$
    - Assets in production network paths or internet-facing gateways evaluate to $\text{EXPOSED}$.
@@ -269,7 +272,7 @@ When upstream patches are unavailable, delayed, or introduce breaking API change
 - For `MEMORY_WRITE` sinks: Enclosing `RANGE_VALIDATION` and `BOUNDS_CHECK` AST sanitizers.
 - For `POINTER_DEREF` sinks: Enclosing `NULL_CHECK` AST guards. Elevating a pointer dereference to $\text{VERIFIED\_COMPLETE}$ requires establishing object lifetime/provenance (verifying freedom from use-after-free) and allocated buffer bounds in addition to non-null assertions.
 - For `SYSTEM_CALL` sinks: Strict `COMMAND_SANITIZATION` and `ALLOWLIST_CHECK` filters.
-- For `FILE_OPERATION` sinks: Strict `PATH_CONFINEMENT` and `CANONICALIZATION_CHECK` path sanitizers.
+- For `FILE_OPERATION` sinks: Strict race-resistant `PATH_CONFINEMENT` requiring descriptor-relative operations (e.g., `openat(dirfd, ...)` with `O_NOFOLLOW` and `O_DIRECTORY` pinning) to eliminate Time-of-Check to Time-of-Use (TOCTOU) symlink or directory swapping between validation and consumption. An explicit symlink policy (strictly rejecting traversal outside the pinned root descriptor) and descriptor-relative binding are mandatory prerequisites before a file-operation guard can achieve $\text{VERIFIED\_COMPLETE}$.
 
 *Safety Rigor Note:* Syntactic AST presence alone does not guarantee semantic path coverage or runtime boundary enforcement. These constructs remain *candidate* compensating controls that lower triage priority only after path-complete symbolic verification or active runtime validation confirms non-bypassability.
 
@@ -277,16 +280,15 @@ When upstream patches are unavailable, delayed, or introduce breaking API change
 To provide defense-in-depth across the software lifecycle, the compile-time AST epistemic model interfaces with the external **AgentFence** runtime telemetry and policy framework:
 1. **Compile-Time AST Invariant Extraction (Silver-One Core):** Identifies proven invariants, uncertain boundaries, and un-sanitized sink flows across code diffs, emitting versioned JSON schemas (`diffAnalysis`, `silverOneDataflow`, `schema_version: "1.0.0"`). Payloads lacking valid schema versions or containing incompatible field structures are rejected and treated as fail-closed unknowns.
 2. **External Runtime Telemetry & Policy Gateway (AgentFence OTel Gateway):** As an external runtime mediator, AgentFence ingests AST export graphs to inject contextual OpenTelemetry spans and metric events around uncertain AST boundaries (Curiosity Buckets A/B). 
-   - **Sink-Specific Enforcement Contracts:** In active proxy mode, AgentFence intercepts runtime request boundaries to enforce typed invariant checks corresponding to each sink class: argument bounds for memory writes, non-null assertions for pointer dereferences, command allowlists for system calls, and canonical path confinement for file operations.
+   - **Sink-Specific Enforcement Contracts & Scope Boundaries:** In active proxy mode, AgentFence intercepts runtime request boundaries to enforce typed invariant checks: argument bounds validation for memory write sinks, strict command allowlists for system execution sinks, and descriptor-confined paths for file operations. Crucially, boundary proxies cannot inspect in-process memory state; therefore, external boundary-level non-null checks are **strictly excluded** from promoting pointer dereference guards to $\text{VERIFIED\_COMPLETE}$. Runtime promotion for `POINTER_DEREF` sinks exclusively requires in-process instrumentation (such as AddressSanitizer/HWASan runtime metadata or compiler-inserted spatial/temporal bounds checks) establishing object lifetime, provenance, and allocation boundaries.
    - **Enforcement Decision Points & Missing Metadata:** If AST contract metadata is missing or unresolvable for a target boundary, the proxy enforces a deterministic deny rather than falling back to an unvalidated audit path (*"Unknown $\neq$ Safe"*).
-   - **Telemetry Degradation Resiliency:** If OpenTelemetry export buffers saturate or connection to telemetry collectors fails, active proxy enforcement remains fully enabled; the gateway continues enforcing contract denials while buffering critical security audit events locally.
+   - **Telemetry Degradation Resiliency & Bounded Audit Buffering:** If OpenTelemetry export buffers saturate or upstream telemetry collectors become unreachable, active proxy enforcement remains fully enabled without reverting to an unverified fail-open state. Local audit persistence operates as a bounded in-memory ring-buffer with a strictly capped capacity (e.g., maximum 10,000 events or 32 MB). When buffer saturation occurs, the gateway executes a prioritized retention policy: low-severity metric spans and operational traces are dropped via FIFO rotation, while critical security denial events and invariant breach records are retained. If total audit buffer exhaustion occurs, the gateway emits high-priority rate-limited system alerts and drops excess telemetry without exhausting process memory, maintaining active contract denial enforcement continuously.
 
 ---
 
 ### Referenced System Artifacts
 - [`docs/THE_NEUROSYMBOLIC_SWARM_LESSONS_AND_POSTMORTEM.md`](THE_NEUROSYMBOLIC_SWARM_LESSONS_AND_POSTMORTEM.md): 5-Phase post-mortem and empirical receipts.
 - [`docs/EVALUATION_DISCIPLINE_GUIDE.md`](EVALUATION_DISCIPLINE_GUIDE.md): The 4 Anti-Gaming Invariants and statistical testing protocol.
-- [`scenarios/debate/graphify_flow_extractor.py`](../scenarios/debate/graphify_flow_extractor.py): Tree-sitter AST dataflow reachability extractor.
-- [`scenarios/debate/offline_b_gate.py`](../scenarios/debate/offline_b_gate.py): Deterministic B-gate invariant validation engine.
-- [`scenarios/debate/reflector_agent.py`](../scenarios/debate/reflector_agent.py): Graph-Powered GEPA Pareto reflector.
-
+- [`src/barred_neurosymbolic/ast_flow.py`](../src/barred_neurosymbolic/ast_flow.py): Tree-sitter AST dataflow reachability extractor.
+- [`src/barred_neurosymbolic/invariants.py`](../src/barred_neurosymbolic/invariants.py): Deterministic B-gate invariant validation engine.
+- [`src/barred_neurosymbolic/reflector.py`](../src/barred_neurosymbolic/reflector.py): Graph-Powered GEPA Pareto reflector.
