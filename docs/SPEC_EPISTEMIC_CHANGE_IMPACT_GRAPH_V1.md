@@ -218,69 +218,85 @@ Detection  ──►  Diagnosis  ──►  Patch Synthesis  ──►  Impact G
 ## 8. Exposure Management vs. Vulnerability Management: Grounding Epistemic Impact in Transitive Attack Surfaces and Runtime Telemetry
 
 ### 8.1 The Flaw-Count Fallacy vs. Contextual Risk
-Vulnerability management programs frequently encounter operational bottlenecks when remediation backlogs are prioritized primarily by raw CVSS v3.1 base severity scores ($0.0 - 10.0$) without code reachability or environmental context:
+Vulnerability management programs frequently encounter operational bottlenecks when remediation backlogs are prioritized primarily by raw CVSS v3.1 base severity scores (0.0 - 10.0) without code reachability or environmental context:
 1. **Context Blindness:** A critical CVSS 9.8 vulnerability in an isolated test harness or unreachable dead-code branch is treated as an urgent blocker, while a medium CVSS 6.5 flaw in an internet-facing API gateway with access to backend databases is neglected.
 2. **Exploitation Evidence:** CISA maintains the Known Exploited Vulnerabilities ([CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)) catalog to establish an evidence-based baseline of vulnerabilities actively exploited in the wild, helping organizations prioritize remediation based on observed attacker activity rather than theoretical base severity alone.
 3. **The DARPA AIxCC Accelerated Timeline:** As demonstrated during the semifinal round of DARPA’s Artificial Intelligence Cyber Challenge ([DARPA AIxCC](https://www.darpa.mil/news/2024/ai-cyber-challenge-cybersecurity)), autonomous Cyber Reasoning Systems successfully identified 22 synthetic vulnerabilities across critical real-world codebases (Jenkins, Linux kernel, Nginx, SQLite3, Apache Tika), automatically patched 15 of them, and responsibly disclosed an undiscovered bug in SQLite3. As automated tools accelerate vulnerability discovery and triage cycles, manual, context-blind patch queues become an operational bottleneck.
 
-### 8.2 AST Code Reachability ($R_{\text{reach}}$) and Independent Epistemic Predicates
+### 8.2 AST Code Reachability (R_reach) and Independent Epistemic Predicates
 Finding a vulnerable function in a dependency or codebase does not imply exposure. The neurosymbolic engine evaluates reachability and defensive state deterministically using Tree-Sitter AST dataflow extraction across three strictly independent predicates:
-- **Untrusted Sources ($S$):** Network reads (`recv`, `recvfrom`), file streams (`fread`, `fgets`), environment variables (`getenv`), or deserializers (`cJSON_Parse`).
-- **Security-Sensitive Sinks ($K$):** 
+- **Untrusted Sources (S):** Network reads (`recv`, `recvfrom`), file streams (`fread`, `fgets`), environment variables (`getenv`), or deserializers (`cJSON_Parse`).
+- **Security-Sensitive Sinks (K):** 
   - `MEMORY_WRITE`: Memory manipulation and buffer writes (`memcpy`, `strcpy`, `snprintf`).
   - `POINTER_DEREF`: Unbounded pointer resolutions and member accesses.
   - `SYSTEM_CALL`: Process execution calls (`system`, `popen`, `exec*`).
   - `FILE_OPERATION`: File descriptor creations and path operations (`open`, `creat`, `unlink`), requiring explicit path validation.
 
-The three independent epistemic predicates are:
-1. **Reachability Predicate ($R_{\text{reach}}$):**
-   $$R_{\text{reach}}(v) \in \{\text{PROVEN\_REACHABLE}, \text{UNKNOWN\_REACHABLE}, \text{PROVEN\_UNREACHABLE}\}$$
-   - A dataflow path is classified as $\text{PROVEN\_REACHABLE}$ if and only if there exists a deterministic, verified execution witness connecting an active external or public program entrypoint through the untrusted source into the sink argument vector.
-   - A path is classified as $\text{PROVEN\_UNREACHABLE}$ if and only if exhaustive, path-complete analysis proves that every in-scope entrypoint and call-edge cannot reach the source-to-sink path under complete AST coverage and deterministic resolution of all relevant dynamic call edges. Merely finding no discovered path or encountering unmapped edges defaults to $\text{UNKNOWN\_REACHABLE}$ unless this exhaustive non-reachability proof is formally established.
-   - When local tainted propagation exists but full entrypoint-to-source reachability or caller invocation cannot be established (such as uncalled static functions or unresolved caller closures), the path is classified as $\text{UNKNOWN\_REACHABLE}$ rather than receiving full exposure weight, and routes to Curiosity Bucket A for caller investigation.
-   - Incomplete ASTs, unresolvable pointer aliases, dynamic FFI calls, or unmapped macro expansions likewise produce $\text{UNKNOWN\_REACHABLE}$, which **fails closed** ($\omega(R_{\text{reach}}) = 1.0$) to avoid prematurely suppressing unverified attack vectors.
-2. **Guard Verification Predicate ($\text{GuardVerified}$):**
-   $$\text{GuardVerified}(v) \in \{\text{VERIFIED\_COMPLETE}, \text{CANDIDATE\_ONLY}, \text{ABSENT}\}$$
-   - Syntactic presence of an AST sanitizer (`RANGE_VALIDATION`, `BOUNDS_CHECK`, `NULL_CHECK`, `ALLOWLIST_CHECK`, `PATH_CONFINEMENT`) marks the guard as $\text{CANDIDATE\_ONLY}$.
-   - The guard is elevated to $\text{VERIFIED\_COMPLETE}$ if and only if it satisfies one of two completeness criteria: (a) path-complete symbolic verification proving that all execution paths leading to the sink are bounded without bypass or arithmetic overflow, or (b) active runtime enforcement proof demonstrating non-bypassable in-process or kernel-level mediation. Finite invariant regression tests remain exploratory evidence and are classified as $\text{CANDIDATE\_ONLY}$.
-3. **Asset Exposure Predicate ($\text{AssetExposed}$):**
-   $$\text{AssetExposed}(v) \in \{\text{EXPOSED}, \text{UNKNOWN}, \text{ISOLATED}\}$$
-   - Assets in production network paths or internet-facing gateways evaluate to $\text{EXPOSED}$.
-   - Assets evaluate to $\text{ISOLATED}$ if and only if all in-scope threat-model attack vectors (including lateral traversal, internal authenticated segments, and IPC channels) are formally proven unreachable.
-   - If isolation cannot be proven path-complete across the threat model, the asset fails closed as $\text{UNKNOWN}$.
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        THE 3 INDEPENDENT EPISTEMIC PREDICATES                          │
+├────────────────────────────┬────────────────────────────┬──────────────────────────────┤
+│ 1. Reachability (R_reach)  │ 2. Guard (GuardVerified)   │ 3. Asset (AssetExposed)      │
+├────────────────────────────┼────────────────────────────┼──────────────────────────────┤
+│ • PROVEN_REACHABLE         │ • VERIFIED_COMPLETE        │ • EXPOSED                    │
+│ • UNKNOWN_REACHABLE        │ • CANDIDATE_ONLY           │ • UNKNOWN                    │
+│ • PROVEN_UNREACHABLE       │ • ABSENT                   │ • ISOLATED                   │
+└────────────────────────────┴────────────────────────────┴──────────────────────────────┘
+```
 
-#### Decoupled Operational Exposure Formulation:
+1. **Reachability Predicate (`R_reach`):**
+   - A dataflow path is classified as `PROVEN_REACHABLE` if and only if there exists a deterministic, verified execution witness connecting an active external or public program entrypoint through the untrusted source into the sink argument vector.
+   - A path is classified as `PROVEN_UNREACHABLE` if and only if exhaustive, path-complete analysis proves that every in-scope entrypoint and call-edge cannot reach the source-to-sink path under complete AST coverage and deterministic resolution of all relevant dynamic call edges. Merely finding no discovered path or encountering unmapped edges defaults to `UNKNOWN_REACHABLE` unless this exhaustive non-reachability proof is formally established.
+   - When local tainted propagation exists but full entrypoint-to-source reachability or caller invocation cannot be established (such as uncalled static functions or unresolved caller closures), the path is classified as `UNKNOWN_REACHABLE` rather than receiving full exposure weight, and routes to Curiosity Bucket A for caller investigation.
+   - Incomplete ASTs, unresolvable pointer aliases, dynamic FFI calls, or unmapped macro expansions likewise produce `UNKNOWN_REACHABLE`, which **fails closed** (`ω(R_reach) = 1.0`) to avoid prematurely suppressing unverified attack vectors.
+2. **Guard Verification Predicate (`GuardVerified`):**
+   - Syntactic presence of an AST sanitizer (`RANGE_VALIDATION`, `BOUNDS_CHECK`, `NULL_CHECK`, `ALLOWLIST_CHECK`, `PATH_CONFINEMENT`) marks the guard as `CANDIDATE_ONLY`.
+   - The guard is elevated to `VERIFIED_COMPLETE` if and only if it satisfies one of two completeness criteria: (a) path-complete symbolic verification proving that all execution paths leading to the sink are bounded without bypass or arithmetic overflow, or (b) active runtime enforcement proof demonstrating non-bypassable in-process or kernel-level mediation. Finite invariant regression tests remain exploratory evidence and are classified as `CANDIDATE_ONLY`.
+3. **Asset Exposure Predicate (`AssetExposed`):**
+   - Assets in production network paths or internet-facing gateways evaluate to `EXPOSED`.
+   - Assets evaluate to `ISOLATED` if and only if all in-scope threat-model attack vectors (including lateral traversal, internal authenticated segments, and IPC channels) are formally proven unreachable.
+   - If isolation cannot be proven path-complete across the threat model, the asset fails closed as `UNKNOWN`.
 
-Operational exposure remains bounded within the canonical CVSS domain $[0.0, 10.0]$:
+#### Decoupled Operational Exposure Formulation
+Operational exposure remains bounded within the canonical CVSS domain `[0.0, 10.0]`:
 
-$$
-\text{Operational Exposure}(v) = 
-\begin{cases} 
-0.0 & \text{if } R_{\text{reach}}(v) = \text{PROVEN\_UNREACHABLE} \\
-0.0 & \text{else if } \text{GuardVerified}(v) = \text{VERIFIED\_COMPLETE} \\
-0.0 & \text{else if } \text{AssetExposed}(v) = \text{ISOLATED} \\
-\text{CVSS}_{\text{base}}(v) \times \omega(R_{\text{reach}}) \times \gamma(\text{AssetExposed}) & \text{otherwise (Fail-Closed)}
-\end{cases}
-$$
-
-where $\omega(\text{PROVEN\_REACHABLE}) = 1.0$, $\omega(\text{UNKNOWN\_REACHABLE}) = 1.0$, $\omega(\text{PROVEN\_UNREACHABLE}) = 0.0$, and the asset exposure weights are explicitly: $\gamma(\text{EXPOSED}) = 1.0$, $\gamma(\text{UNKNOWN}) = 1.0$, and $\gamma(\text{ISOLATED}) = 0.0$.
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                       DECOUPLED OPERATIONAL EXPOSURE EVALUATION                        │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│   IF R_reach(v) == PROVEN_UNREACHABLE           ──► Operational Exposure = 0.0         │
+│   ELSE IF GuardVerified(v) == VERIFIED_COMPLETE ──► Operational Exposure = 0.0         │
+│   ELSE IF AssetExposed(v) == ISOLATED           ──► Operational Exposure = 0.0         │
+│   ELSE (Fail-Closed Default):                                                          │
+│       Operational Exposure = CVSS_base(v) × ω(R_reach) × γ(AssetExposed)               │
+│                                                                                        │
+│   Where Epistemic Multipliers are strictly bounded:                                    │
+│     • ω(PROVEN_REACHABLE)   = 1.0  |  ω(UNKNOWN_REACHABLE) = 1.0  |  ω(PROVEN_UNREACHABLE) = 0.0│
+│     • γ(EXPOSED)           = 1.0  |  γ(UNKNOWN)           = 1.0  |  γ(ISOLATED)           = 0.0│
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ### 8.3 The Multi-Tiered Transitive Attack Surface & Unresolved Edge Semantics
 Modern runtime binaries are composites of deep dependency trees:
 
-$$\text{Application Logic} \longrightarrow \text{Direct Dependency} \longrightarrow \text{Transitive Dependency} \longrightarrow \text{OS Packages} \longrightarrow \text{Container / Cloud Runtime}$$
+```text
+Application Logic  ──►  Direct Dependency  ──►  Transitive Dependency  ──►  OS Packages  ──►  Container / Cloud Runtime
+     [L0]                      [L1]                     [L2]                     [L3]                    [L4]
+```
 
 While Software Bills of Materials (SBOMs; e.g. CycloneDX via Syft) catalog package existence, they fail to prove execution reachability. The Epistemic Change-Impact Graph extends AST reachability across package boundaries into **Transitive Call-Graph Closure**:
 - **Bucket A (Structural Uncertainty):** Traces external exported symbols into downstream caller call-graphs.
 - **Bucket B (Semantic Contract Uncertainty):** Detects whether upstream package upgrades introduce breaking API contract mutations or silent data truncations.
-- **Unresolved Edge Propagation:** If dynamic linking, indirect function pointers, callbacks, reflection, or stripped binaries prevent complete caller resolution, the graph engine strictly forbids under-approximating the caller set. All unresolvable call-edges propagate as $\text{UNKNOWN\_REACHABLE}$ to the I-Gate, preventing false $\text{PROVEN\_UNREACHABLE}$ classifications.
+- **Unresolved Edge Propagation:** If dynamic linking, indirect function pointers, callbacks, reflection, or stripped binaries prevent complete caller resolution, the graph engine strictly forbids under-approximating the caller set. All unresolvable call-edges propagate as `UNKNOWN_REACHABLE` to the I-Gate, preventing false `PROVEN_UNREACHABLE` classifications.
 
 ### 8.4 Candidate Compensating Controls as Invariant Guards
 When upstream patches are unavailable, delayed, or introduce breaking API changes, the Epistemic Graph synthesizes **Candidate Compensating Invariant Guards**:
 - For `MEMORY_WRITE` sinks: Enclosing `RANGE_VALIDATION` and `BOUNDS_CHECK` AST sanitizers.
-- For `POINTER_DEREF` sinks: Enclosing `NULL_CHECK` AST guards. Elevating a pointer dereference to $\text{VERIFIED\_COMPLETE}$ requires establishing object lifetime/provenance (verifying freedom from use-after-free) and allocated buffer bounds in addition to non-null assertions.
+- For `POINTER_DEREF` sinks: Enclosing `NULL_CHECK` AST guards. Elevating a pointer dereference to `VERIFIED_COMPLETE` requires establishing object lifetime/provenance (verifying freedom from use-after-free) and allocated buffer bounds in addition to non-null assertions.
 - For `SYSTEM_CALL` sinks: Strict `COMMAND_SANITIZATION` and `ALLOWLIST_CHECK` filters.
-- For `FILE_OPERATION` sinks: Strict race-resistant `PATH_CONFINEMENT` requiring descriptor-relative operations (e.g., `openat(dirfd, ...)` with `O_NOFOLLOW` and `O_DIRECTORY` pinning) to eliminate Time-of-Check to Time-of-Use (TOCTOU) symlink or directory swapping between validation and consumption. An explicit symlink policy (strictly rejecting traversal outside the pinned root descriptor) and descriptor-relative binding are mandatory prerequisites before a file-operation guard can achieve $\text{VERIFIED\_COMPLETE}$.
+- For `FILE_OPERATION` sinks: Strict race-resistant `PATH_CONFINEMENT` requiring descriptor-relative operations (e.g., `openat(dirfd, ...)` with `O_NOFOLLOW` and `O_DIRECTORY` pinning) to eliminate Time-of-Check to Time-of-Use (TOCTOU) symlink or directory swapping between validation and consumption. An explicit symlink policy (strictly rejecting traversal outside the pinned root descriptor) and descriptor-relative binding are mandatory prerequisites before a file-operation guard can achieve `VERIFIED_COMPLETE`.
 
 *Safety Rigor Note:* Syntactic AST presence alone does not guarantee semantic path coverage or runtime boundary enforcement. These constructs remain *candidate* compensating controls that lower triage priority only after path-complete symbolic verification or active runtime validation confirms non-bypassability.
 
@@ -288,9 +304,10 @@ When upstream patches are unavailable, delayed, or introduce breaking API change
 To provide defense-in-depth across the software lifecycle, the compile-time AST epistemic model interfaces with the external **AgentFence** runtime telemetry and policy framework:
 1. **Compile-Time AST Invariant Extraction (Silver-One Core):** Identifies proven invariants, uncertain boundaries, and un-sanitized sink flows across code diffs, emitting versioned JSON schemas (`diffAnalysis`, `silverOneDataflow`, `schema_version: "1.0.0"`). Payloads lacking valid schema versions or containing incompatible field structures are rejected and treated as fail-closed unknowns.
 2. **External Runtime Telemetry & Policy Gateway (AgentFence OTel Gateway):** As an external runtime mediator, AgentFence ingests AST export graphs to inject contextual OpenTelemetry spans and metric events around uncertain AST boundaries (Curiosity Buckets A/B). 
-   - **Sink-Specific Enforcement Contracts & Scope Boundaries:** In active proxy mode, AgentFence intercepts runtime request boundaries to enforce typed invariant checks: argument bounds validation for memory write sinks, strict command allowlists for system execution sinks, and descriptor-confined paths for file operations. Crucially, boundary proxies cannot inspect in-process memory state; therefore, external boundary-level non-null checks are **strictly excluded** from promoting pointer dereference guards to $\text{VERIFIED\_COMPLETE}$. Runtime promotion for `POINTER_DEREF` sinks exclusively requires in-process instrumentation (such as AddressSanitizer/HWASan runtime metadata or compiler-inserted spatial/temporal bounds checks) establishing object lifetime, provenance, and allocation boundaries.
-   - **Enforcement Decision Points & Missing Metadata:** If AST contract metadata is missing or unresolvable for a target boundary, the proxy enforces a deterministic deny rather than falling back to an unvalidated audit path (*"Unknown $\neq$ Safe"*).
+   - **Sink-Specific Enforcement Contracts & Scope Boundaries:** In active proxy mode, AgentFence intercepts runtime request boundaries to enforce typed invariant checks: argument bounds validation for memory write sinks, strict command allowlists for system execution sinks, and descriptor-confined paths for file operations. Crucially, boundary proxies cannot inspect in-process memory state; therefore, external boundary-level non-null checks are **strictly excluded** from promoting pointer dereference guards to `VERIFIED_COMPLETE`. Runtime promotion for `POINTER_DEREF` sinks exclusively requires in-process instrumentation (such as AddressSanitizer/HWASan runtime metadata or compiler-inserted spatial/temporal bounds checks) establishing object lifetime, provenance, and allocation boundaries.
+   - **Enforcement Decision Points & Missing Metadata:** If AST contract metadata is missing or unresolvable for a target boundary, the proxy enforces a deterministic deny rather than falling back to an unvalidated audit path (*"Unknown != Safe"*).
    - **Telemetry Degradation Resiliency & Bounded Audit Buffering:** If OpenTelemetry export buffers saturate or upstream telemetry collectors become unreachable, active proxy enforcement remains fully enabled without reverting to an unverified fail-open state. Local audit persistence operates as a bounded in-memory ring-buffer with a strictly capped capacity (e.g., maximum 10,000 events or 32 MB). When buffer saturation occurs, the gateway executes a prioritized retention policy: low-severity metric spans and operational traces are dropped via FIFO rotation, while critical security denial events and invariant breach records are retained. If total audit buffer exhaustion occurs, the gateway emits high-priority rate-limited system alerts and drops excess telemetry without exhausting process memory, maintaining active contract denial enforcement continuously.
+
 ---
 
 ### Referenced System Artifacts
