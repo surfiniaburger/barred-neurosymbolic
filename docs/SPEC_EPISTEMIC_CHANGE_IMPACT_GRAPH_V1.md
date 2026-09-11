@@ -235,34 +235,42 @@ Finding a vulnerable function in a dependency or codebase does not imply exposur
 
 The three independent epistemic predicates are:
 1. **Reachability Predicate ($R_{\text{reach}}$):**
-   $$R_{\text{reach}}(v) \in \{\text{PROVEN\_REACHABLE}, \text{UNKNOWN\_REACHABLE}, \text{PROVEN\_UNREACHABLE}\}$$
+   $$R_{\text{reach}}(v) \in \lbrace \text{PROVEN\_REACHABLE}, \text{UNKNOWN\_REACHABLE}, \text{PROVEN\_UNREACHABLE} \rbrace$$
    - A dataflow path is classified as $\text{PROVEN\_REACHABLE}$ if and only if there exists a deterministic, verified execution witness connecting an active external or public program entrypoint through the untrusted source into the sink argument vector.
    - A path is classified as $\text{PROVEN\_UNREACHABLE}$ if and only if exhaustive, path-complete analysis proves that every in-scope entrypoint and call-edge cannot reach the source-to-sink path under complete AST coverage and deterministic resolution of all relevant dynamic call edges. Merely finding no discovered path or encountering unmapped edges defaults to $\text{UNKNOWN\_REACHABLE}$ unless this exhaustive non-reachability proof is formally established.
    - When local tainted propagation exists but full entrypoint-to-source reachability or caller invocation cannot be established (such as uncalled static functions or unresolved caller closures), the path is classified as $\text{UNKNOWN\_REACHABLE}$ rather than receiving full exposure weight, and routes to Curiosity Bucket A for caller investigation.
    - Incomplete ASTs, unresolvable pointer aliases, dynamic FFI calls, or unmapped macro expansions likewise produce $\text{UNKNOWN\_REACHABLE}$, which **fails closed** ($\omega(R_{\text{reach}}) = 1.0$) to avoid prematurely suppressing unverified attack vectors.
 2. **Guard Verification Predicate ($\text{GuardVerified}$):**
-   $$\text{GuardVerified}(v) \in \{\text{VERIFIED\_COMPLETE}, \text{CANDIDATE\_ONLY}, \text{ABSENT}\}$$
+   $$\text{GuardVerified}(v) \in \lbrace \text{VERIFIED\_COMPLETE}, \text{CANDIDATE\_ONLY}, \text{ABSENT} \rbrace$$
    - Syntactic presence of an AST sanitizer (`RANGE_VALIDATION`, `BOUNDS_CHECK`, `NULL_CHECK`, `ALLOWLIST_CHECK`, `PATH_CONFINEMENT`) marks the guard as $\text{CANDIDATE\_ONLY}$.
    - The guard is elevated to $\text{VERIFIED\_COMPLETE}$ if and only if it satisfies one of two completeness criteria: (a) path-complete symbolic verification proving that all execution paths leading to the sink are bounded without bypass or arithmetic overflow, or (b) active runtime enforcement proof demonstrating non-bypassable in-process or kernel-level mediation. Finite invariant regression tests remain exploratory evidence and are classified as $\text{CANDIDATE\_ONLY}$.
 3. **Asset Exposure Predicate ($\text{AssetExposed}$):**
-   $$\text{AssetExposed}(v) \in \{\text{EXPOSED}, \text{UNKNOWN}, \text{ISOLATED}\}$$
+   $$\text{AssetExposed}(v) \in \lbrace \text{EXPOSED}, \text{UNKNOWN}, \text{ISOLATED} \rbrace$$
    - Assets in production network paths or internet-facing gateways evaluate to $\text{EXPOSED}$.
    - Assets evaluate to $\text{ISOLATED}$ if and only if all in-scope threat-model attack vectors (including lateral traversal, internal authenticated segments, and IPC channels) are formally proven unreachable.
    - If isolation cannot be proven path-complete across the threat model, the asset fails closed as $\text{UNKNOWN}$.
 
 #### Decoupled Operational Exposure Formulation:
 Operational exposure remains bounded within the canonical CVSS domain $[0.0, 10.0]$:
-$$\text{Operational Exposure}(v) = \begin{cases} 
+
+$$
+\text{Operational Exposure}(v) = \begin{cases} 
 0.0 & \text{if } R_{\text{reach}}(v) = \text{PROVEN\_UNREACHABLE} \\
 0.0 & \text{else if } \text{GuardVerified}(v) = \text{VERIFIED\_COMPLETE} \\
 0.0 & \text{else if } \text{AssetExposed}(v) = \text{ISOLATED} \\
 \text{CVSS}_{\text{base}}(v) \times \omega(R_{\text{reach}}) \times \gamma(\text{AssetExposed}) & \text{otherwise (Fail-Closed)}
-\end{cases}$$
+\end{cases}
+$$
+
 where $\omega(\text{PROVEN\_REACHABLE}) = 1.0$, $\omega(\text{UNKNOWN\_REACHABLE}) = 1.0$, $\omega(\text{PROVEN\_UNREACHABLE}) = 0.0$, and the asset exposure weights are explicitly: $\gamma(\text{EXPOSED}) = 1.0$, $\gamma(\text{UNKNOWN}) = 1.0$, and $\gamma(\text{ISOLATED}) = 0.0$.
 
 ### 8.3 The Multi-Tiered Transitive Attack Surface & Unresolved Edge Semantics
 Modern runtime binaries are composites of deep dependency trees:
-$$\text{Application Logic} \longrightarrow \text{Direct Dependency} \longrightarrow \text{Transitive Dependency} \longrightarrow \text{OS Packages} \longrightarrow \text{Container / Cloud Runtime}$$
+
+$$
+\text{Application Logic} \longrightarrow \text{Direct Dependency} \longrightarrow \text{Transitive Dependency} \longrightarrow \text{OS Packages} \longrightarrow \text{Container / Cloud Runtime}
+$$
+
 While Software Bills of Materials (SBOMs; e.g. CycloneDX via Syft) catalog package existence, they fail to prove execution reachability. The Epistemic Change-Impact Graph extends AST reachability across package boundaries into **Transitive Call-Graph Closure**:
 - **Bucket A (Structural Uncertainty):** Traces external exported symbols into downstream caller call-graphs.
 - **Bucket B (Semantic Contract Uncertainty):** Detects whether upstream package upgrades introduce breaking API contract mutations or silent data truncations.
