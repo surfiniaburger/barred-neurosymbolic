@@ -243,17 +243,18 @@ The three independent epistemic predicates are:
 3. **Asset Exposure Predicate ($\text{AssetExposed}$):**
    $$\text{AssetExposed}(v) \in \{\text{EXPOSED}, \text{UNKNOWN}, \text{ISOLATED}\}$$
    - Assets in production network paths or internet-facing gateways evaluate to $\text{EXPOSED}$.
-   - Assets evaluate to $\text{ISOLATED}$ only when formally proven unreachable across all threat-model attack vectors in scope (including lateral traversal, internal authenticated segments, and IPC channels). If isolation cannot be proven path-complete across the threat model, the asset fails closed as $\text{UNKNOWN}$ ($\gamma = 1.0$).
+   - Assets evaluate to $\text{ISOLATED}$ if and only if all in-scope threat-model attack vectors (including lateral traversal, internal authenticated segments, and IPC channels) are formally proven unreachable.
+   - If isolation cannot be proven path-complete across the threat model, the asset fails closed as $\text{UNKNOWN}$.
 
 #### Decoupled Operational Exposure Formulation:
 Operational exposure remains bounded within the canonical CVSS domain $[0.0, 10.0]$:
 $$\text{Operational Exposure}(v) = \begin{cases} 
 0.0 & \text{if } R_{\text{reach}}(v) = \text{PROVEN\_UNREACHABLE} \\
 0.0 & \text{else if } \text{GuardVerified}(v) = \text{VERIFIED\_COMPLETE} \\
-0.0 & \text{else if } \text{AssetExposed}(v) = \text{ISOLATED} \land \text{ThreatModelIsolated}(v) \\
+0.0 & \text{else if } \text{AssetExposed}(v) = \text{ISOLATED} \\
 \text{CVSS}_{\text{base}}(v) \times \omega(R_{\text{reach}}) \times \gamma(\text{AssetExposed}) & \text{otherwise (Fail-Closed)}
 \end{cases}$$
-where $\omega(\text{PROVEN\_REACHABLE}) = 1.0$, $\omega(\text{UNKNOWN\_REACHABLE}) = 1.0$, and $\gamma(\text{EXPOSED}) = \gamma(\text{UNKNOWN}) = 1.0$.
+where $\omega(\text{PROVEN\_REACHABLE}) = 1.0$, $\omega(\text{UNKNOWN\_REACHABLE}) = 1.0$, $\omega(\text{PROVEN\_UNREACHABLE}) = 0.0$, and the asset exposure weights are explicitly: $\gamma(\text{EXPOSED}) = 1.0$, $\gamma(\text{UNKNOWN}) = 1.0$, and $\gamma(\text{ISOLATED}) = 0.0$.
 
 ### 8.3 The Multi-Tiered Transitive Attack Surface & Unresolved Edge Semantics
 Modern runtime binaries are composites of deep dependency trees:
@@ -266,7 +267,7 @@ While Software Bills of Materials (SBOMs; e.g. CycloneDX via Syft) catalog packa
 ### 8.4 Candidate Compensating Controls as Invariant Guards
 When upstream patches are unavailable, delayed, or introduce breaking API changes, the Epistemic Graph synthesizes **Candidate Compensating Invariant Guards**:
 - For `MEMORY_WRITE` sinks: Enclosing `RANGE_VALIDATION` and `BOUNDS_CHECK` AST sanitizers.
-- For `POINTER_DEREF` sinks: Enclosing `NULL_CHECK` AST guards.
+- For `POINTER_DEREF` sinks: Enclosing `NULL_CHECK` AST guards. Elevating a pointer dereference to $\text{VERIFIED\_COMPLETE}$ requires establishing object lifetime/provenance (verifying freedom from use-after-free) and allocated buffer bounds in addition to non-null assertions.
 - For `SYSTEM_CALL` sinks: Strict `COMMAND_SANITIZATION` and `ALLOWLIST_CHECK` filters.
 - For `FILE_OPERATION` sinks: Strict `PATH_CONFINEMENT` and `CANONICALIZATION_CHECK` path sanitizers.
 
