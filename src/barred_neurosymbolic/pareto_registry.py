@@ -66,7 +66,11 @@ def gepa_lock(
         Open file descriptor of the acquired lock.
     """
     lock_file.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR, 0o666)
+    fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+    except OSError:
+        pass
     start_time = time.monotonic()
     sleep_interval = initial_sleep
 
@@ -179,7 +183,10 @@ class ParetoRegistry:
                 return str(bucket_data["prompt"])
 
         # Fallback to static baseline specialist prompt per Spec §3.4
-        return get_static_baseline_prompt(taxonomy)
+        try:
+            return get_static_baseline_prompt(taxonomy)
+        except KeyError:
+            return ""
 
     def get_pareto_variant_id(self, taxonomy: TaxonomyBucket) -> str:
         """Return the active variant ID for the given taxonomy bucket (or 'baseline_v0')."""
@@ -274,9 +281,12 @@ class ParetoRegistry:
         """Extract the most recent prompt from trace details, falling back to static baseline."""
         for t in reversed(var_traces):
             prompt = t.get("details", {}).get("prompt") or t.get("prompt")
-            if prompt:
-                return str(prompt)
-        return get_static_baseline_prompt(bucket)
+            if prompt and str(prompt).strip():
+                return str(prompt).strip()
+        try:
+            return get_static_baseline_prompt(bucket)
+        except KeyError:
+            return ""
 
     def _compute_bucket_frontier_entry(
         self,
@@ -291,9 +301,12 @@ class ParetoRegistry:
 
         var_id, last_trace, score = best
         var_traces = var_dict.get(var_id, [last_trace])
+        prompt = self._extract_prompt_from_traces(var_traces, bucket)
+        if not prompt or not prompt.strip():
+            return None
         return {
             "variant_id": var_id,
-            "prompt": self._extract_prompt_from_traces(var_traces, bucket),
+            "prompt": prompt,
             "score": round(score, 6),
             "updated_at": now_iso,
         }

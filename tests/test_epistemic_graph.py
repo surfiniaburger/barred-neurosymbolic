@@ -314,3 +314,18 @@ def test_pareto_registry_find_best_variant_local_import(tmp_path):
     assert best == "Sample Pareto Prompt"
     var_id = reg.get_pareto_variant_id("memory_safety")
     assert var_id == "var_test_1"
+
+
+def test_pareto_registry_unknown_bucket_and_permissions(tmp_path):
+    from barred_neurosymbolic.pareto_registry import ParetoRegistry
+    reg = ParetoRegistry(gepa_dir=tmp_path)
+
+    # Unknown bucket returns empty string without KeyError
+    prompt = reg.get_pareto_prompt("unknown_taxonomy_bucket_xyz")
+    assert prompt == ""
+
+    # Check lock file permission mode is 0o600
+    with reg._lock():
+        assert reg.lock_path.exists()
+        mode = reg.lock_path.stat().st_mode & 0o777
+        assert mode == 0o600
