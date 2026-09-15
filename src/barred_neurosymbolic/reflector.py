@@ -436,7 +436,7 @@ def create_app(registry: Optional[ParetoRegistry] = None) -> FastAPI:
 
 
 def get_app() -> FastAPI:
-    """Lazy ASGI factory target: uvicorn scenarios.debate.reflector_agent:get_app --factory"""
+    """Lazy ASGI factory target: uvicorn barred_neurosymbolic.reflector:get_app --factory"""
     return create_app()
 
 

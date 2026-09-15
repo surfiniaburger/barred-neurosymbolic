@@ -259,7 +259,7 @@ class ParetoRegistry:
         var_dict: Dict[str, List[Dict[str, Any]]],
         now_iso: str,
     ) -> Optional[tuple[str, Dict[str, Any], float]]:
-        from scenarios.debate.reflector_agent import calculate_rule_score
+        from .reflector import calculate_rule_score  # local import breaks cycle
         best_var = None
         best_score = -float("inf")
         for var_id, var_traces in var_dict.items():

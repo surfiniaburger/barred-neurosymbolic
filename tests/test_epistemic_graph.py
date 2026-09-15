@@ -297,3 +297,20 @@ def test_reflector_agent_injects_curiosity_directive():
     assert "[Curiosity Directive - BUCKET_A_CALLER_STRUCTURAL]" in resp.mutated_system_prompt
     assert directive.directive_text in resp.mutated_system_prompt
     assert resp.curiosity_directive == directive
+
+
+def test_pareto_registry_find_best_variant_local_import(tmp_path):
+    from barred_neurosymbolic.pareto_registry import ParetoRegistry
+    reg = ParetoRegistry(gepa_dir=tmp_path)
+    # Register a variant and retrieve pareto prompt
+    reg.register_pareto_prompt(
+        taxonomy="memory_safety",
+        prompt="Sample Pareto Prompt",
+        variant_id="var_test_1",
+        score=1.5,
+        rationale="Repaired test",
+    )
+    best = reg.get_pareto_prompt("memory_safety")
+    assert best == "Sample Pareto Prompt"
+    var_id = reg.get_pareto_variant_id("memory_safety")
+    assert var_id == "var_test_1"
