@@ -12,6 +12,7 @@ All functions are pure (no I/O, no network, no filesystem).
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, FrozenSet, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field
@@ -19,8 +20,11 @@ from pydantic import BaseModel, Field
 from .reachability import (
     FlowGraphSnapshot,
     FlowSignature,
+    evaluate_epistemic_graph,
     is_sanitizer_valid_for_sink,
 )
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # §3.1  Closed-set taxonomy and failure-bucket type aliases
@@ -49,6 +53,23 @@ AttemptOutcome = Literal[
     "DEAD_END_CHAIN",
     "RETRYABLE_FAILURE",
 ]
+
+CuriosityBucket = Literal[
+    "BUCKET_A_CALLER_STRUCTURAL",
+    "BUCKET_B_CONTRACT_SEMANTIC",
+]
+
+
+class CuriosityDirective(BaseModel):
+    """
+    Structured curiosity directive emitted by the epistemic graph engine.
+    Steers swarm reflection towards concrete evidence gathering rather than blind prompt mutations.
+    """
+    bucket: CuriosityBucket
+    target_symbol: str
+    reason: str
+    directive_text: str
+
 
 # ---------------------------------------------------------------------------
 # §3.3  Canonical Graph Diagnostic Schema (μ_f^graph)
@@ -87,6 +108,11 @@ class GraphDiagnosticSignature(BaseModel):
     verifier_logic_error: bool = False
     verifier_report: Dict[str, Any] = Field(default_factory=dict)
     judge_rationale: str = ""
+    curiosity_bucket: Optional[CuriosityBucket] = None
+    curiosity_directive: Optional[CuriosityDirective] = None
+    epistemic_reachability: Optional[str] = None
+    epistemic_guard_state: Optional[str] = None
+    operational_exposure: Optional[float] = None
 
     def to_flow_dict(self) -> Dict[str, Any]:
         """Adapter for backward compatibility with FlowSignature dict schemas."""
@@ -102,6 +128,9 @@ class GraphDiagnosticSignature(BaseModel):
             "failure_bucket": self.failure_bucket,
             "failed_anchor_lines": self.failed_anchor_lines,
             "invalid_at": self.invalid_at,
+            "curiosity_bucket": self.curiosity_bucket,
+            "epistemic_reachability": self.epistemic_reachability,
+            "operational_exposure": self.operational_exposure,
         }
 
 
@@ -121,6 +150,7 @@ class ReflectRequest(BaseModel):
     graph_diagnostic: GraphDiagnosticSignature
     current_system_prompt: str
     raw_execution_trace: Optional[Dict[str, Any]] = None
+    curiosity_directive: Optional[CuriosityDirective] = None
 
 
 class ReflectResponse(BaseModel):
@@ -139,6 +169,7 @@ class ReflectResponse(BaseModel):
     estimated_correction_success_probability: float = Field(
         ..., ge=0.0, le=1.0
     )
+    curiosity_directive: Optional[CuriosityDirective] = None
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +396,51 @@ def _classify_sanitizer_diagnostic(
     )
 
 
+def _extract_epistemic_base_fields(graph_snapshot: FlowGraphSnapshot) -> Dict[str, Any]:
+    """Extract epistemic reachability, guard state, exposure, and curiosity directives."""
+    fields: Dict[str, Any] = {}
+    try:
+        epistemic_res = evaluate_epistemic_graph(graph_snapshot)
+        fields["epistemic_reachability"] = epistemic_res.reachability.value
+        fields["epistemic_guard_state"] = epistemic_res.guard_verification.value
+        fields["operational_exposure"] = epistemic_res.operational_exposure
+        if epistemic_res.curiosity_bucket:
+            target_sym = (
+                epistemic_res.witness_path[-1]
+                if epistemic_res.witness_path
+                else graph_snapshot.scenario_id
+            )
+            reason = (
+                epistemic_res.unresolved_reasons[0]
+                if epistemic_res.unresolved_reasons
+                else "Epistemic uncertainty"
+            )
+            fields["curiosity_bucket"] = epistemic_res.curiosity_bucket
+            fields["curiosity_directive"] = CuriosityDirective(
+                bucket=epistemic_res.curiosity_bucket,
+                target_symbol=str(target_sym),
+                reason=reason,
+                directive_text=epistemic_res.curiosity_directive or "",
+            )
+    except Exception:
+        logger.exception("Failed to extract epistemic graph fields")
+    return fields
+
+
+def _is_syntax_unsupported(graph_snapshot: FlowGraphSnapshot) -> bool:
+    """Determine if AST extraction completely failed due to unsupported syntax."""
+    return not graph_snapshot.is_complete and not graph_snapshot.nodes
+
+
+def _is_source_missing(graph_snapshot: FlowGraphSnapshot, has_sink: bool) -> bool:
+    """Determine if a recognized sink exists without any tracked source flow."""
+    return bool(
+        has_sink
+        and not _has_tracked_source_for_sinks(graph_snapshot)
+        and graph_snapshot.signatures
+    )
+
+
 def classify_graph_diagnostic(
     debate_result: Any,
     graph_snapshot: FlowGraphSnapshot,
@@ -401,10 +477,11 @@ def classify_graph_diagnostic(
         "verifier_logic_error": getattr(debate_result, "verifier_logic_error", False),
         "verifier_report": getattr(debate_result, "verifier_report", {}),
         "judge_rationale": getattr(debate_result, "judge_rationale", ""),
+        **_extract_epistemic_base_fields(graph_snapshot),
     }
 
     # ── Bucket 1 (Highest): B_UNSUPPORTED_SYNTAX ──
-    if not graph_snapshot.is_complete and not graph_snapshot.nodes:
+    if _is_syntax_unsupported(graph_snapshot):
         return GraphDiagnosticSignature(
             failure_bucket="B_UNSUPPORTED_SYNTAX",
             **base_fields,
@@ -428,7 +505,7 @@ def classify_graph_diagnostic(
 
     # ── Bucket 4: B_SOURCE_MISSING ──
     has_sink = _has_recognized_sink(graph_snapshot)
-    if has_sink and not _has_tracked_source_for_sinks(graph_snapshot) and graph_snapshot.signatures:
+    if _is_source_missing(graph_snapshot, has_sink):
         first_sig = _find_first_sink_signature(graph_snapshot)
         return _build_source_missing_diagnostic(first_sig, base_fields)
 

@@ -16,6 +16,7 @@ dependencies = [
     "tree-sitter>=0.22.0",
     "tree-sitter-c>=0.21.0",
     "pydantic>=2.7.0",
+    "fastapi>=0.110.0",
 ]
 
 [project.optional-dependencies]
