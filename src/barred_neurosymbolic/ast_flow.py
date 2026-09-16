@@ -107,6 +107,9 @@ class GraphifyFlowVisitor:
         self.signatures: List[FlowSignature] = []
         self.sources: Dict[str, Tuple[str, str]] = {}  # var_name -> (source_node_id, source_type)
         self.guard_stack: List[Dict[str, Set[str]]] = []  # var_name -> set(sanitizer_types)
+        self.functions: Dict[str, dict] = {}  # func_name -> meta dict
+        self.called_functions: Set[str] = set()
+        self.current_function: Optional[dict] = None
         self.node_counter = 0
 
     def _gen_id(self, prefix: str) -> str:
@@ -115,6 +118,54 @@ class GraphifyFlowVisitor:
 
     def _get_node_text(self, node: tree_sitter.Node) -> str:
         return self.code_bytes[node.start_byte : node.end_byte].decode("utf-8", errors="replace").strip()
+
+    def _extract_function_name(self, node: tree_sitter.Node) -> Optional[str]:
+        """Extracts the identifier name of a function definition."""
+        decl = node.child_by_field_name("declarator")
+        curr = decl
+        while curr and curr.type != "function_declarator":
+            curr = curr.child_by_field_name("declarator")
+        if curr:
+            ident = curr.child_by_field_name("declarator")
+            if ident:
+                if ident.type == "identifier":
+                    return self._get_node_text(ident)
+                first_id = self._find_first_identifier(ident)
+                if first_id:
+                    return first_id
+        if decl:
+            return self._find_first_identifier(decl)
+        return None
+
+    def _handle_function_definition(self, node: tree_sitter.Node):
+        func_name = self._extract_function_name(node)
+        is_static = any(
+            c.type == "storage_class_specifier" and self._get_node_text(c) == "static"
+            for c in node.children
+        )
+        is_entrypoint = (func_name == "main" or not is_static) if func_name else True
+        prev_func = self.current_function
+        self.current_function = {
+            "name": func_name or "anonymous_func",
+            "is_static": is_static,
+            "is_entrypoint": is_entrypoint,
+        }
+        if func_name:
+            self.functions[func_name] = self.current_function
+        try:
+            for child in node.children:
+                self.visit(child)
+        finally:
+            self.current_function = prev_func
+
+    def check_unresolved_callers(self) -> bool:
+        """
+        Returns True if any function in the AST is static and not called within the translation unit.
+        """
+        for name, meta in self.functions.items():
+            if meta.get("is_static") and name not in self.called_functions and name != "main":
+                return True
+        return False
 
     def _register_source(
         self, var_name: str, source_kind: str, node: tree_sitter.Node, source_type: str = "UNTRUSTED_INPUT"
@@ -191,6 +242,12 @@ class GraphifyFlowVisitor:
         vars_to_check = [target_var] + (related_vars or [])
         san_type, san_target = self._resolve_sanitizer_for_vars(sink_type, vars_to_check)
 
+        is_entrypoint = (
+            self.current_function.get("is_entrypoint", True)
+            if self.current_function
+            else True
+        )
+
         self.nodes[sink_id] = {
             "id": sink_id,
             "kind": "sink",
@@ -199,6 +256,8 @@ class GraphifyFlowVisitor:
             "label": label,
             "lineno": node.start_point[0] + 1,
             "col_offset": node.start_point[1],
+            "function_name": self.current_function.get("name") if self.current_function else None,
+            "is_entrypoint_reachable": is_entrypoint,
         }
         self.signatures.append(
             FlowSignature(
@@ -209,6 +268,7 @@ class GraphifyFlowVisitor:
                 flow_type=flow_type,
                 sanitizer_type=san_type,
                 guarded_target=san_target,
+                is_entrypoint_reachable=is_entrypoint,
             )
         )
 
@@ -216,7 +276,10 @@ class GraphifyFlowVisitor:
         """Recursively visit AST nodes."""
         node_type = node.type
 
-        if node_type == "parameter_declaration":
+        if node_type == "function_definition":
+            self._handle_function_definition(node)
+            return
+        elif node_type == "parameter_declaration":
             self._handle_parameter(node)
         elif node_type == "if_statement":
             self._handle_if_statement(node)
@@ -303,6 +366,7 @@ class GraphifyFlowVisitor:
         if not func_name:
             return
 
+        self.called_functions.add(func_name)
         arg_idents = self._extract_call_arg_idents(node)
 
         # Check if call is an input source
@@ -529,6 +593,8 @@ def extract_graphify_flow_snapshot(
             parse_error="No valid AST nodes extracted from Tree-sitter parse",
         )
 
+    has_unresolved = best_visitor.check_unresolved_callers()
+
     return FlowGraphSnapshot(
         snapshot_id=snapshot_id,
         scenario_id=scenario_id,
@@ -538,4 +604,5 @@ def extract_graphify_flow_snapshot(
         signatures=best_visitor.signatures,
         is_complete=True,
         parse_error=None,
+        has_unresolved_callers=has_unresolved,
     )

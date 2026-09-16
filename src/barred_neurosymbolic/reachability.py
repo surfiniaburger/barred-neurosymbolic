@@ -5,12 +5,58 @@ Implements the contract specified in RFC_GRAPH_DATAFLOW_PRE_FILTER.md.
 
 import copy
 from dataclasses import dataclass, field
+from enum import Enum
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 
 SUPPORTED_SINKS = {"MEMORY_WRITE", "POINTER_DEREF", "ARRAY_INDEX", "SYSTEM_CALL"}
 VALID_SANITIZERS = {"BOUNDS_CHECK", "RANGE_VALIDATION", "NULL_CHECK", "COMMAND_SANITIZATION", "ALLOWLIST_CHECK"}
+VERIFIED_GUARD_PROOFS = {"SYMBOLIC_COMPLETE", "RUNTIME_MEDIATION", "DESCRIPTOR_PINNED"}
+
+
+class ReachabilityState(str, Enum):
+    PROVEN_REACHABLE = "PROVEN_REACHABLE"
+    UNKNOWN_REACHABLE = "UNKNOWN_REACHABLE"
+    PROVEN_UNREACHABLE = "PROVEN_UNREACHABLE"
+
+
+class GuardVerificationState(str, Enum):
+    VERIFIED_COMPLETE = "VERIFIED_COMPLETE"
+    CANDIDATE_ONLY = "CANDIDATE_ONLY"
+    ABSENT = "ABSENT"
+
+
+class AssetExposureState(str, Enum):
+    EXPOSED = "EXPOSED"
+    UNKNOWN = "UNKNOWN"
+    ISOLATED = "ISOLATED"
+
+
+@dataclass(frozen=True)
+class EpistemicEvaluationResult:
+    reachability: ReachabilityState
+    guard_verification: GuardVerificationState
+    asset_exposure: AssetExposureState
+    operational_exposure: float
+    risk_score: float
+    witness_path: Optional[List[str]] = None
+    unresolved_reasons: List[str] = field(default_factory=list)
+    curiosity_bucket: Optional[str] = None
+    curiosity_directive: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "reachability": self.reachability.value,
+            "guard_verification": self.guard_verification.value,
+            "asset_exposure": self.asset_exposure.value,
+            "operational_exposure": self.operational_exposure,
+            "risk_score": self.risk_score,
+            "witness_path": self.witness_path,
+            "unresolved_reasons": list(self.unresolved_reasons),
+            "curiosity_bucket": self.curiosity_bucket,
+            "curiosity_directive": self.curiosity_directive,
+        }
 
 
 @dataclass(frozen=True)
@@ -23,6 +69,9 @@ class FlowSignature:
     sanitizer_type: Optional[str] = None
     guarded_target: Optional[str] = None
     invalid_at: Optional[float] = None
+    is_guard_verified: bool = False
+    guard_proof_type: Optional[str] = None
+    is_entrypoint_reachable: Optional[bool] = None
 
     def to_dict(self) -> dict:
         return {
@@ -34,6 +83,9 @@ class FlowSignature:
             "sanitizer_type": self.sanitizer_type,
             "guarded_target": self.guarded_target,
             "invalid_at": self.invalid_at,
+            "is_guard_verified": self.is_guard_verified,
+            "guard_proof_type": self.guard_proof_type,
+            "is_entrypoint_reachable": self.is_entrypoint_reachable,
         }
 
     @classmethod
@@ -47,6 +99,9 @@ class FlowSignature:
             sanitizer_type=data.get("sanitizer_type"),
             guarded_target=data.get("guarded_target"),
             invalid_at=data.get("invalid_at"),
+            is_guard_verified=bool(data.get("is_guard_verified", False)),
+            guard_proof_type=data.get("guard_proof_type"),
+            is_entrypoint_reachable=data.get("is_entrypoint_reachable"),
         )
 
 
@@ -60,6 +115,7 @@ class FlowGraphSnapshot:
     signatures: List[FlowSignature] = field(default_factory=list)
     is_complete: bool = True
     parse_error: Optional[str] = None
+    has_unresolved_callers: bool = False
 
     def __post_init__(self):
         # Detach mutable inputs to preserve snapshot immutability
@@ -76,6 +132,7 @@ class FlowGraphSnapshot:
             "signatures": [sig.to_dict() for sig in self.signatures],
             "is_complete": self.is_complete,
             "parse_error": self.parse_error,
+            "has_unresolved_callers": self.has_unresolved_callers,
         }
 
     @classmethod
@@ -91,6 +148,7 @@ class FlowGraphSnapshot:
             signatures=[FlowSignature.from_dict(s) for s in data.get("signatures", [])],
             is_complete=data.get("is_complete", True),
             parse_error=data.get("parse_error"),
+            has_unresolved_callers=data.get("has_unresolved_callers", False),
         )
 
 
@@ -181,6 +239,287 @@ def _has_unsanitized_path(
     return False
 
 
+def omega_reachability(state: ReachabilityState) -> float:
+    """Multiplier omega for reachability state: 1.0 for reachable/unknown, 0.0 for proven unreachable."""
+    if state == ReachabilityState.PROVEN_REACHABLE:
+        return 1.0
+    elif state == ReachabilityState.UNKNOWN_REACHABLE:
+        return 1.0  # Fail closed
+    elif state == ReachabilityState.PROVEN_UNREACHABLE:
+        return 0.0
+    return 1.0
+
+
+def gamma_asset_exposure(state: AssetExposureState) -> float:
+    """Multiplier gamma for asset exposure: 1.0 for exposed/unknown, 0.0 for isolated."""
+    if state == AssetExposureState.EXPOSED:
+        return 1.0
+    elif state == AssetExposureState.UNKNOWN:
+        return 1.0  # Fail closed
+    elif state == AssetExposureState.ISOLATED:
+        return 0.0
+    return 1.0
+
+
+def compute_operational_exposure(
+    reachability: ReachabilityState,
+    guard_verification: GuardVerificationState,
+    asset_exposure: AssetExposureState,
+    cvss_base: float = 10.0,
+) -> float:
+    """
+    Computes operational exposure according to Spec Eq. 1:
+      Exposure = CVSS_base * omega(R_reach) * gamma(AssetExposed)
+    Short-circuits to 0.0 if GuardVerified == VERIFIED_COMPLETE.
+    """
+    if guard_verification == GuardVerificationState.VERIFIED_COMPLETE:
+        return 0.0
+
+    omega = omega_reachability(reachability)
+    gamma = gamma_asset_exposure(asset_exposure)
+    cvss = float(cvss_base) if _is_finite_numeric(cvss_base) else 10.0
+    cvss = max(0.0, min(10.0, cvss))
+    return round(cvss * omega * gamma, 4)
+
+
+def _build_fail_closed_result(
+    reason: str,
+    asset_exposure: AssetExposureState,
+    cvss_base: float,
+    curiosity_bucket: Optional[str] = None,
+    curiosity_directive: Optional[str] = None,
+) -> EpistemicEvaluationResult:
+    reachability = ReachabilityState.UNKNOWN_REACHABLE
+    guard_state = GuardVerificationState.ABSENT
+    exposure = compute_operational_exposure(reachability, guard_state, asset_exposure, cvss_base)
+    return EpistemicEvaluationResult(
+        reachability=reachability,
+        guard_verification=guard_state,
+        asset_exposure=asset_exposure,
+        operational_exposure=exposure,
+        risk_score=1.0,
+        witness_path=None,
+        unresolved_reasons=[reason],
+        curiosity_bucket=curiosity_bucket,
+        curiosity_directive=curiosity_directive,
+    )
+
+
+def _check_snapshot_integrity(
+    graph_snapshot: FlowGraphSnapshot,
+    as_of: Optional[float],
+    asset_exposure: AssetExposureState,
+    cvss_base: float,
+) -> Optional[EpistemicEvaluationResult]:
+    if not graph_snapshot.is_complete or graph_snapshot.parse_error is not None:
+        reason = graph_snapshot.parse_error or "Incomplete AST graph snapshot"
+        return _build_fail_closed_result(
+            reason=reason,
+            asset_exposure=asset_exposure,
+            cvss_base=cvss_base,
+            curiosity_bucket="BUCKET_A_CALLER_STRUCTURAL",
+            curiosity_directive="Investigate syntax/parse errors and structural caller-graph completeness.",
+        )
+    if not _is_finite_numeric(graph_snapshot.created_at) or (as_of is not None and not _is_finite_numeric(as_of)):
+        return _build_fail_closed_result(
+            reason="Non-finite or malformed timestamp",
+            asset_exposure=asset_exposure,
+            cvss_base=cvss_base,
+        )
+    return None
+
+
+def _evaluate_empty_untrusted_graph(
+    graph_snapshot: FlowGraphSnapshot,
+    asset_exposure: AssetExposureState,
+    cvss_base: float,
+) -> EpistemicEvaluationResult:
+    if graph_snapshot.is_complete and not graph_snapshot.has_unresolved_callers:
+        reachability = ReachabilityState.PROVEN_UNREACHABLE
+        exposure = compute_operational_exposure(reachability, GuardVerificationState.ABSENT, asset_exposure, cvss_base)
+        return EpistemicEvaluationResult(
+            reachability=reachability,
+            guard_verification=GuardVerificationState.ABSENT,
+            asset_exposure=asset_exposure,
+            operational_exposure=exposure,
+            risk_score=0.05,
+        )
+    return _build_fail_closed_result(
+        reason="Unresolved callers prevent exhaustive unreachability proof",
+        asset_exposure=asset_exposure,
+        cvss_base=cvss_base,
+        curiosity_bucket="BUCKET_A_CALLER_STRUCTURAL",
+        curiosity_directive="Investigate callers and entrypoint closures before asserting unreachability.",
+    )
+
+
+def _analyze_guard_proofs(
+    untrusted_signatures: List[FlowSignature],
+    graph_snapshot: FlowGraphSnapshot,
+) -> Tuple[bool, bool, Optional[str], Optional[str]]:
+    all_guards_verified = True
+    any_candidate_guard = False
+    curiosity_bucket: Optional[str] = None
+    curiosity_directive: Optional[str] = None
+
+    for sig in untrusted_signatures:
+        sink_node = graph_snapshot.nodes.get(sig.sink_id, {})
+        if not _is_sanitizer_proof_valid(sig, sink_node):
+            all_guards_verified = False
+            continue
+
+        any_candidate_guard = True
+        is_verified = sig.is_guard_verified or (sig.guard_proof_type in VERIFIED_GUARD_PROOFS)
+        if not is_verified:
+            all_guards_verified = False
+            if not curiosity_directive:
+                curiosity_bucket = "BUCKET_B_CONTRACT_SEMANTIC"
+                curiosity_directive = (
+                    f"Verify candidate guard '{sig.sanitizer_type}' on target '{sig.guarded_target}' "
+                    f"with path-complete symbolic verification or runtime mediation proof."
+                )
+
+    return all_guards_verified, any_candidate_guard, curiosity_bucket, curiosity_directive
+
+
+def _evaluate_unsanitized_flow(
+    untrusted_signatures: List[FlowSignature],
+    graph_snapshot: FlowGraphSnapshot,
+    any_candidate_guard: bool,
+    asset_exposure: AssetExposureState,
+    cvss_base: float,
+) -> EpistemicEvaluationResult:
+    guard_state = (
+        GuardVerificationState.CANDIDATE_ONLY
+        if any_candidate_guard
+        else GuardVerificationState.ABSENT
+    )
+    unresolved = graph_snapshot.has_unresolved_callers
+    witness_candidate: Optional[List[str]] = None
+
+    for sig in untrusted_signatures:
+        sink_node = graph_snapshot.nodes.get(sig.sink_id, {})
+        if not _is_sanitizer_proof_valid(sig, sink_node):
+            if sig.is_entrypoint_reachable is False:
+                unresolved = True
+            if witness_candidate is None:
+                witness_candidate = [sig.source_id, sig.sink_id]
+
+    if unresolved:
+        reachability = ReachabilityState.UNKNOWN_REACHABLE
+        reasons = ["Callers or entrypoint reachability cannot be resolved"]
+        curiosity_bucket = "BUCKET_A_CALLER_STRUCTURAL"
+        target_var = untrusted_signatures[0].guarded_target or untrusted_signatures[0].sink_id
+        curiosity_directive = (
+            f"Investigate callers of entrypoint for sink {target_var} before modifying buffer signature."
+        )
+        witness_path = None
+    else:
+        reachability = ReachabilityState.PROVEN_REACHABLE
+        reasons = []
+        curiosity_bucket = None
+        curiosity_directive = None
+        witness_path = witness_candidate
+
+    exposure = compute_operational_exposure(reachability, guard_state, asset_exposure, cvss_base)
+    return EpistemicEvaluationResult(
+        reachability=reachability,
+        guard_verification=guard_state,
+        asset_exposure=asset_exposure,
+        operational_exposure=exposure,
+        risk_score=1.0,
+        witness_path=witness_path,
+        unresolved_reasons=reasons,
+        curiosity_bucket=curiosity_bucket,
+        curiosity_directive=curiosity_directive,
+    )
+
+
+def _evaluate_sanitized_flow(
+    all_guards_verified: bool,
+    graph_snapshot: FlowGraphSnapshot,
+    asset_exposure: AssetExposureState,
+    cvss_base: float,
+    curiosity_bucket: Optional[str],
+    curiosity_directive: Optional[str],
+) -> EpistemicEvaluationResult:
+    if all_guards_verified:
+        return EpistemicEvaluationResult(
+            reachability=ReachabilityState.PROVEN_UNREACHABLE,
+            guard_verification=GuardVerificationState.VERIFIED_COMPLETE,
+            asset_exposure=asset_exposure,
+            operational_exposure=0.0,
+            risk_score=0.05,
+        )
+
+    guard_state = GuardVerificationState.CANDIDATE_ONLY
+    if graph_snapshot.has_unresolved_callers:
+        reachability = ReachabilityState.UNKNOWN_REACHABLE
+        reasons = ["Unresolved caller closure under candidate guard"]
+    else:
+        reachability = ReachabilityState.PROVEN_REACHABLE
+        reasons = []
+
+    exposure = compute_operational_exposure(reachability, guard_state, asset_exposure, cvss_base)
+    return EpistemicEvaluationResult(
+        reachability=reachability,
+        guard_verification=guard_state,
+        asset_exposure=asset_exposure,
+        operational_exposure=exposure,
+        risk_score=0.05,
+        witness_path=None,
+        unresolved_reasons=reasons,
+        curiosity_bucket=curiosity_bucket,
+        curiosity_directive=curiosity_directive,
+    )
+
+
+def evaluate_epistemic_graph(
+    graph_snapshot: FlowGraphSnapshot,
+    as_of: Optional[float] = None,
+    asset_exposure: AssetExposureState = AssetExposureState.UNKNOWN,
+    cvss_base: float = 10.0,
+) -> EpistemicEvaluationResult:
+    """
+    Full Epistemic Graph Evaluation Engine.
+    Computes tri-state reachability (PROVEN_REACHABLE, UNKNOWN_REACHABLE, PROVEN_UNREACHABLE),
+    guard verification state (VERIFIED_COMPLETE, CANDIDATE_ONLY, ABSENT),
+    operational exposure, and Curiosity Bucket directives.
+    """
+    integrity_error = _check_snapshot_integrity(graph_snapshot, as_of, asset_exposure, cvss_base)
+    if integrity_error is not None:
+        return integrity_error
+
+    eval_time = float(as_of) if as_of is not None else float(graph_snapshot.created_at)
+    active = _filter_active_signatures(graph_snapshot, eval_time)
+    if not active:
+        return _build_fail_closed_result(
+            reason="No active flow signatures at evaluation time",
+            asset_exposure=asset_exposure,
+            cvss_base=cvss_base,
+        )
+
+    untrusted_signatures = [
+        sig for sig in active
+        if sig.source_type == "UNTRUSTED_INPUT" and sig.sink_type in SUPPORTED_SINKS
+    ]
+    if not untrusted_signatures:
+        return _evaluate_empty_untrusted_graph(graph_snapshot, asset_exposure, cvss_base)
+
+    all_verified, any_candidate, bucket_b, directive_b = _analyze_guard_proofs(
+        untrusted_signatures, graph_snapshot
+    )
+
+    if _has_unsanitized_path(active, graph_snapshot):
+        return _evaluate_unsanitized_flow(
+            untrusted_signatures, graph_snapshot, any_candidate, asset_exposure, cvss_base
+        )
+
+    return _evaluate_sanitized_flow(
+        all_verified, graph_snapshot, asset_exposure, cvss_base, bucket_b, directive_b
+    )
+
+
 def evaluate_graph_reachability(
     graph_snapshot: FlowGraphSnapshot,
     as_of: Optional[float] = None,
@@ -193,26 +532,8 @@ def evaluate_graph_reachability(
     - Returns 1.0 (High Risk) for unsanitized paths, incomplete graphs, or invalid endpoints.
     - Returns 0.05 (Low Risk) for verified guarded or safe flows.
     """
-    if not graph_snapshot.is_complete or graph_snapshot.parse_error is not None:
-        return 1.0
-
-    if not _is_finite_numeric(graph_snapshot.created_at):
-        return 1.0
-
-    if as_of is not None and not _is_finite_numeric(as_of):
-        return 1.0
-
-    eval_time = float(as_of) if as_of is not None else float(graph_snapshot.created_at)
-
-    active = _filter_active_signatures(graph_snapshot, eval_time)
-    if active is None or not active:
-        return 1.0  # Fail closed (1.0) when no active flow signatures exist at eval_time
-
-    if _has_unsanitized_path(active, graph_snapshot):
-        return 1.0
-
-    return 0.05  # All flows guarded or safe -> Low Risk (Pass)
-
+    result = evaluate_epistemic_graph(graph_snapshot, as_of=as_of)
+    return result.risk_score
 
 
 def is_graph_candidate_rejected(

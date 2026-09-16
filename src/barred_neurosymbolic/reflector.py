@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from agentbeats.clock import RunClock
-from scenarios.debate.pareto_registry import (
+from .clock import RunClock
+from .pareto_registry import (
     DEFAULT_HALF_LIFE_DAYS,
     DEFAULT_MIN_CORROBORATION,
     ParetoRegistry,
@@ -261,6 +261,12 @@ def mutate_system_prompt(
     repair_directive = build_topological_repair_instruction(diag)
     dead_ends = registry.get_known_dead_ends(request.taxonomy_bucket)
 
+    # Check for curiosity micro-directive
+    curiosity = request.curiosity_directive or diag.curiosity_directive
+    curiosity_clause = ""
+    if curiosity:
+        curiosity_clause = f"\n\n[Curiosity Directive - {curiosity.bucket}]\n{curiosity.directive_text}"
+
     # Build negative constraint clause if dead-ends exist
     dead_end_clause = ""
     if dead_ends:
@@ -274,6 +280,7 @@ def mutate_system_prompt(
         f"{request.current_system_prompt}\n\n"
         f"[Topological Repair Directive - {diag.failure_bucket}]\n"
         f"{repair_directive}"
+        f"{curiosity_clause}"
         f"{dead_end_clause}"
     ).strip()
 
@@ -311,6 +318,7 @@ def mutate_system_prompt(
         taxonomy_bucket=request.taxonomy_bucket,
         pareto_variant_id=variant_hash,
         estimated_correction_success_probability=round(prob, 4),
+        curiosity_directive=curiosity,
     )
 
 
@@ -428,7 +436,7 @@ def create_app(registry: Optional[ParetoRegistry] = None) -> FastAPI:
 
 
 def get_app() -> FastAPI:
-    """Lazy ASGI factory target: uvicorn scenarios.debate.reflector_agent:get_app --factory"""
+    """Lazy ASGI factory target: uvicorn barred_neurosymbolic.reflector:get_app --factory"""
     return create_app()
 
 
