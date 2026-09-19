@@ -1,13 +1,11 @@
 # Debate Benchmark Report: 2x2 Matrix Evaluation (Baseline vs. Asymmetric vs. Symmetric)
 
 **Evaluation Date:** 2026-09-16  
-**Evaluation Scope:** 3-Way Benchmark across 2x2 Matrix Quadrants:
-1. **Quadrant 1 (Clean Baseline):** `unrun-baseline-01` (No Reflector, Legacy Con Gate)
-2. **Quadrant 2 (Asymmetric Candidate):** `unrun-13` (Pro-Only Reflector + Epistemic Curiosity, Legacy Con Gate)
-3. **Quadrant 3 (Symmetric Warm Pareto):** `unrun-symmetric-01` (Symmetric Pro + Con Reflector from `gepa_local`, Aligned Counter-Evidence Con Gate)
-
-**Seed Manifest:** [`scenarios/debate/cve_seeds_test.jsonl`](../scenarios/debate/cve_seeds_test.jsonl) (10 CVE test seeds: Seeds 42–51, ground truth: 6 safe, 4 vulnerable)  
-**Target Architecture:** BARRED-Fleet Swarm (Gemma-4-12B Judge/Verifier, Gemma-4-E4B Debaters)
+**Evaluation Scope:** Complete 2x2 Matrix Benchmark across Epistemic Symmetry and AST Program Slicing:
+1. **Quadrant 1 (Clean Baseline):** `unrun-baseline-01` (Unassisted Debaters, Legacy Con Gate, Unpruned Judge)
+2. **Quadrant 2 (Asymmetric Candidate):** `unrun-13` (Pro-Only Metacognitive Reflector + Epistemic Curiosity, Legacy Con Gate, Unpruned Judge)
+3. **Quadrant 3 (Symmetric Pareto Unpruned):** `unrun-symmetric-01..05` (Symmetric Pro + Con Reflector from `gepa_local`, Aligned Counter-Evidence Con Gate, Unpruned Judge)
+4. **Quadrant 4 (Symmetric Metacognition + AST Sliced Judge):** `unrun-sliced-01..05` (Symmetric Metacognition, Aligned Con Gate, Tree-sitter AST Program Slicing on Judge; evaluated in Act 2)
 
 ---
 
@@ -17,16 +15,16 @@ This benchmark rigorously validates the hypothesis of **epistemic symmetry in ad
 > *Does providing metacognitive reflection and curiosity directives to both Pro and Con—coupled with invariant-based counter-evidence validation—achieve the optimal Pareto frontier (maximum yield, minimal hallucinations, optimal token efficiency)?*
 
 The empirical evidence from `unrun-baseline-01`, `unrun-13`, and `unrun-symmetric-01` is definitive:
-1. **Symmetric Metacognition Achieved Highest Accepted Yield (7/10 Seeds, 70.0%):**
-   `unrun-symmetric-01` accepted **7 high-quality rows** (6 Con counter-evidence proofs, 1 Pro exploit), outperforming both the clean baseline (5 rows) and the asymmetric candidate (6 rows).
+1. **Symmetric Metacognition Achieved Highest Accepted Yield in the 3-Way Single-Run Comparison (7/10 Seeds, 70.0%):**
+   In the single-run baseline comparison, `unrun-symmetric-01` accepted **7 high-quality rows** (6 Con counter-evidence proofs, 1 Pro exploit), outperforming both the clean baseline (5 rows) and the asymmetric candidate (6 rows). Across the subsequent 5-replicate symmetric series, yields reached an average of **76.0% ± 8.9%** (peaking at 9/10 in `symmetric-05`), and AST program slicing in Act 2 further elevated mean yield to **92.0% ± 8.4%** (peaking at 10/10).
 2. **Zero Logic Errors in Accepted Training Corpus (0.0000%):**
    Across all three runs, the accepted training corpus maintained an unblemished $0.0000$ B-Gate INV-1 score. All 7 rows in `training_corpus_symmetric_01.jsonl` are grounded and mathematically sound.
 3. **Hallucinations Contained and Defeated (-60% vs. Asymmetric Candidate):**
    Whereas asymmetric Pro steering in `unrun-13` caused a 5x explosion of logic errors (5 errors / 33.3% rate), symmetric reflection in `unrun-symmetric-01` halved Pro's hallucinations to 2, and both were safely intercepted by the Verifier.
 4. **Gate Alignment Solved the Con Bottleneck (-87.5% Template Rejections):**
    In baseline `unrun-baseline-01`, 8 valid Con wins were rejected by `mechanism_template_failed` because the gate required exploit-flow strings for safe code. Under the aligned `_con_mechanism_template_gate`, template failures dropped from 8 down to 1, unlocking 6 legitimate Con safe-code proofs (`validated_con_counter_evidence`).
-5. **Optimal Pareto Token Efficiency (31,447 Tokens / Accepted Row, -39.8% Cost):**
-   The symmetric setup achieved the lowest token cost per accepted training sample in the benchmark series: **31,446.9 tokens/row**, compared to 52,271.4 in baseline (-39.8%) and 36,111.3 in `unrun-13` (-12.9%).
+5. **Optimal Pareto Token Efficiency in the 3-Way Comparison (31,447 Tokens / Accepted Row, -39.8% Cost):**
+   In the headline 3-way single-run comparison, `unrun-symmetric-01` achieved the lowest token cost per accepted training sample: **31,446.9 tokens/row**, compared to 52,271.4 in baseline (-39.8%) and 36,111.3 in `unrun-13` (-12.9%). Across the 5 unpruned replicates, token cost averaged **28,225.6 ± 7,534.8 tokens/row** (with `symmetric-05` reaching 17,862.7 tokens/row). AST program slicing in Act 2 reduced this further to **20,292.5 ± 4,125.1 tokens/row** (-61.2% vs. baseline).
 
 ---
 
@@ -46,7 +44,7 @@ The empirical evidence from `unrun-baseline-01`, `unrun-13`, and `unrun-symmetri
 | **Template Rejections** | 8 (40.0%) | 0 (0.0%) | 1 (5.9%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | **0.20 ± 0.45 (1.2%)** | **[0.00, 0.76]** |
 | **B2 Anchor Match Rate** | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | **100.0% ± 0.0%** | **[100.0%, 100.0%]** |
 | **Total Benchmark Tokens** | 261,357 | 216,668 | 220,128 | 182,770 | 234,397 | 248,406 | 160,764 | **209,293.0 ± 35,550.0** | **[165,160.0, 253,426.0] (-19.9% vs. Q1)** |
-| **Tokens / Accepted Row** | 52,271.4 | 36,111.3 | 31,446.9 | 22,846.3 | 33,485.3 | 35,486.6 | 17,862.7 | **28,225.5 ± 7,639.6** | **[18,740.9, 37,710.1] (-46.0% vs. Q1)** |
+| **Tokens / Accepted Row** | 52,271.4 | 36,111.3 | 31,446.9 | 22,846.3 | 33,485.3 | 35,486.6 | 17,862.7 | **28,225.6 ± 7,534.8** | **[18,871.4, 37,579.7] (-46.0% vs. Q1)** |
 
 ---
 
@@ -118,12 +116,21 @@ To eliminate this bottleneck, [`scenarios/debate/judge_slicer.py`](../scenarios/
 | **Attempt Logic Errors** | 0 (0.0%) | 5 (33.3%) | 2.00 ± 0.71 (13.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | **0.00 ± 0.00 (0.0%)** | **[0.00, 0.00] (Zero errors)** | 0.0% | **-100.0%** |
 | **Total Attempts** | 20 | 15 | 15.60 ± 1.82 | 14 | 15 | 13 | 14 | 12 | **13.60 ± 1.14** | **[12.18, 15.02] attempts** | **-32.0%** | **-12.8%** |
 | **Total Benchmark Tokens** | 261,357 | 216,668 | 209,293.0 ± 35,550.0 | 179,442 | 215,702 | 186,146 | 175,758 | **163,032** | **184,016.0 ± 19,608.6** | **[159,668.7, 208,363.3] tokens** | **-29.6%** | **-12.1%** |
-| **Tokens / Accepted Row** | 52,271.4 | 36,111.3 | 28,225.5 ± 7,639.6 | 19,938.0 | 26,962.8 | 20,682.9 | 17,575.8 | **16,303.2** | **20,292.5 ± 4,125.1** | **[15,170.6, 25,414.5] tokens/row** | **-61.2%** | **-28.1%** |
+| **Tokens / Accepted Row** | 52,271.4 | 36,111.3 | 28,225.6 ± 7,534.8 | 19,938.0 | 26,962.8 | 20,682.9 | 17,575.8 | **16,303.2** | **20,292.5 ± 4,125.1** | **[15,170.6, 25,414.5] tokens/row** | **-61.2%** | **-28.1%** |
 | **B-Gate Status** | Pass (Threshold) | Pass (Threshold) | Pass (Threshold / Pass) | PASS (All Gates) | Pass (Threshold) | PASS (All Gates) | PASS (All Gates) | **PASS (All Gates)** | **100% Validated** | — | — | — |
 
 ### C. Key Insights from Sliced Judge Adjudication (Full N=5 Evaluation)
-1. **Statistically Significant Yield Dominance ($p = 0.0349 < 0.05$):** 
-   Across 5 independent replicates, the Sliced Judge sustained an unprecedented average yield of **92.0% ($9.20 \pm 0.84$ rows/run)**, with consecutive 100% yield peaks in Runs 4 and 5. A paired two-tailed Student's $t$-test against unpruned symmetric debate confirmed **statistical significance ($t(4) = 3.138, p = 0.0349$)**.
+1. **Statistically Significant Yield Dominance ($p = 0.0349 < 0.05$):**
+   Across 5 independent replicates, the Sliced Judge sustained an unprecedented average yield of **92.0% ($9.20 ± 0.84$ rows/run)**, with consecutive 100% yield peaks in Runs 4 and 5, compared to **76.0% ($7.60 ± 0.89$ rows/run)** for Unpruned Symmetric debate.
+   
+   Evaluating the 5 one-to-one run pairings matched by replicate schedule ($RNG = 42, 43, 44, 45, 46$ across Seeds 42–51):
+   - **Pair 1 (`rep1`):** `unrun-sliced-01` (9) vs. `symmetric-01` (7) $\to \Delta = +2$
+   - **Pair 2 (`rep2`):** `unrun-sliced-02` (8) vs. `symmetric-02` (8) $\to \Delta = 0$
+   - **Pair 3 (`rep3`):** `unrun-sliced-03` (9) vs. `symmetric-03` (7) $\to \Delta = +2$
+   - **Pair 4 (`rep4`):** `unrun-sliced-04` (10) vs. `symmetric-04` (7) $\to \Delta = +3$
+   - **Pair 5 (`rep5`):** `unrun-sliced-05` (10) vs. `symmetric-05` (9) $\to \Delta = +1$
+   
+   The mean paired difference is **$+1.60 ± 1.14$ accepted rows** ($SE = 0.510$). A paired two-tailed Student's $t$-test confirmed **statistical significance ($t(4) = 3.138, p = 0.0349$)**. Furthermore, an independent two-sample $t$-test also confirms significance under unequal or independent variance ($t(8) = 2.921, p = 0.0193$).
 2. **61.2% Token Cost Reduction (95% CI: $[15.2\text{k}, 25.4\text{k}]$):**
    Tokens per accepted row dropped to **20,292.5 tokens/row** (saving over $31,970$ tokens per accepted row relative to baseline). The 95% upper confidence bound ($25,414.5$) strictly excludes both the unpruned symmetric mean ($28,225.5$) and the baseline ($52,271.4$).
 3. **Flawless Invariant Purity Across 68 Cumulative Attempts:**
