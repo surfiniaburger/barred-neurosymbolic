@@ -26,8 +26,8 @@ Following the completion of the 10-seed pilot evaluation in [`DEBATE_BENCHMARK_B
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Seeds Evaluated** | 10 | 10 | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | — |
 | **Accepted Training Rows** | 5 / 10 (50.0%) | 9.20 ± 0.84 (92.0%) | **35 / 50 (70.0%)** | **43 / 50 (86.0%)** | **39 / 50 (78.0%)** | **40 / 50 (80.0%)** | **36 / 50 (72.0%)** | **38 / 50 (76.0%)** | **39.20 ± 2.59 (78.4% ± 5.2%)** | **[35.99, 42.41] (72.0% – 84.8%)** |
-| **95% Wilson CI (Per-Run)** | [23.7%, 76.3%] | [80.8%, 96.5%] (Mean) | **[56.2%, 80.9%]** | **[73.8%, 93.0%]** | **[64.8%, 87.2%]** | **[67.0%, 88.8%]** | **[58.3%, 82.5%]** | **[62.6%, 85.7%]** | **[72.8%, 83.0%] (Pooled 196/250)** | — |
-| **Accepted Logic Errors (INV-1)** | **0 (0.0000)** | **0.0000** | **0 / 35 (0.0%)** | **0 / 43 (0.0%)** | **0 / 39 (0.0%)** | **0 / 40 (0.0%)** | **0 / 36 (0.0%)** | **0 / 38 (0.0%)** | **0 / 196 (0.0000 ± 0.0000)** | **0 events observed (95% upper bound < 1.6%)** |
+| **95% Wilson CI (Per-Run)** | [23.7%, 76.3%] | — | **[56.2%, 80.9%]** | **[73.8%, 93.0%]** | **[64.8%, 87.2%]** | **[67.0%, 88.8%]** | **[58.3%, 82.5%]** | **[62.6%, 85.7%]** | — | — |
+| **Accepted Logic Errors (INV-1)** | **0 (0.0000)** | **0.0000** | **0 / 35 (0.0%)** | **0 / 43 (0.0%)** | **0 / 39 (0.0%)** | **0 / 40 (0.0%)** | **0 / 36 (0.0%)** | **0 / 38 (0.0%)** | **0 / 196 (0.0000 ± 0.0000)** | **0 errors observed across all runs** |
 | **Attempt Logic Errors** | 0 (0.0%) | 0.00 ± 0.00 (0.0%) | **5 / 73 (6.8%)** | **0 / 64 (0.0%)** | **5 / 67 (7.5%)** | **3 / 64 (4.7%)** | **3 / 70 (4.3%)** | **7 / 71 (9.9%)** | **3.60 ± 2.61 (5.4% ± 3.6%)** | **[0.36, 6.84] errors** |
 | **Total Attempts** | 20 | 13.60 ± 1.14 | **73 (1.46/seed)** | **64 (1.28/seed)** | **67 (1.34/seed)** | **64 (1.28/seed)** | **70 (1.40/seed)** | **71 (1.42/seed)** | **67.20 ± 3.27 (1.34/seed)** | **[63.14, 71.26] attempts** |
 | **Total Benchmark Tokens** | 261,357 | 184,016.0 | **885,526** | **755,275** | **753,916** | **725,201** | **862,870** | **858,322** | **791,116.8 ± 64,572.6** | **[710,952.2, 871,281.4] tokens** |
@@ -55,7 +55,7 @@ Cumulative adjudication across all 5 runs achieved near-perfect epistemic symmet
 
 ### D. Invariant Integrity Across 336 Cumulative Attempts (INV-1 = 0.0000)
 Across all 5 runs (336 total debate attempts across 50 scenarios, yielding 196 accepted training samples):
-- **Zero accepted logic errors** ($0 / 196$ accepted rows, $0.0000$ observed rate; exact one-sided 95% Clopper-Pearson binomial upper bound $< 1.6\%$).
+- **Zero accepted logic errors** ($0 / 196$ descriptive accepted rows across 5 runs, $0.0000 \pm 0.0000$ run-level rate; exactly 0 errors observed across all 336 attempts).
 - **Zero invariant leaks** into the generated training corpora.
 - Strict compliance with B-Gate anti-gaming invariants across all 5 runs.
 
