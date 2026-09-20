@@ -55,7 +55,7 @@ Cumulative adjudication across all 5 runs achieved near-perfect epistemic symmet
 
 ### D. Invariant Integrity Across 336 Cumulative Attempts (INV-1 = 0.0000)
 Across all 5 runs (336 total debate attempts across 50 scenarios, yielding 196 accepted training samples):
-- **Zero accepted logic errors** ($0 / 196$ accepted rows, $0.0000$ observed rate; 95% one-sided binomial upper bound $< 1.5\%$).
+- **Zero accepted logic errors** ($0 / 196$ accepted rows, $0.0000$ observed rate; exact one-sided 95% Clopper-Pearson binomial upper bound $< 1.6\%$).
 - **Zero invariant leaks** into the generated training corpora.
 - Strict compliance with B-Gate anti-gaming invariants across all 5 runs.
 
