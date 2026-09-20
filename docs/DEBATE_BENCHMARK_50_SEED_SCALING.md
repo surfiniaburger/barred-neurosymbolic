@@ -22,17 +22,17 @@ Following the completion of the 10-seed pilot evaluation in [`DEBATE_BENCHMARK_B
 
 ## 2. Multi-Replicate Performance Matrix (50 Seeds x Replicates)
 
-| Metric | 10-Seed Pilot Baseline | 10-Seed Pilot Sliced Mean ($N=5$) | **50-Seed Unpruned Control (`unrun-symmetric-50-rep1`)** | **50-Seed Sliced Rep 1 (`unrun-sliced-50-rep1`)** | **50-Seed Sliced Rep 2 (`unrun-sliced-50-rep2`)** | **50-Seed Sliced Rep 3 (`unrun-sliced-50-rep3`)** | **50-Seed Sliced Rep 4 (`unrun-sliced-50-rep4`)** | **50-Seed Sliced Rep 5 (`unrun-sliced-50-rep5`)** | **50-Seed Sliced Mean ± Std ($N=5$)** | **95% Confidence Interval ($N=5, t_{crit}=2.776$)** |
+| Metric | 10-Seed Pilot Baseline | 10-Seed Pilot Sliced Mean ($N=5$) | **50-Seed Unpruned Control (`unrun-symmetric-50-rep1`)** | **50-Seed Sliced Rep 1 (`unrun-sliced-50-rep1`)** | **50-Seed Sliced Rep 2 (`unrun-sliced-50-rep2`)** | **50-Seed Sliced Rep 3 (`unrun-sliced-50-rep3`)** | **50-Seed Sliced Rep 4 (`unrun-sliced-50-rep4`)** | **50-Seed Sliced Rep 5 (`unrun-sliced-50-rep5`)** | **50-Seed Sliced Mean ± Std ($N=5$)** | **95% Confidence Interval (Run-Level $t$, $N=5$)** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Seeds Evaluated** | 10 | 10 | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | **50 (25 S / 25 V)** | — |
 | **Accepted Training Rows** | 5 / 10 (50.0%) | 9.20 ± 0.84 (92.0%) | **35 / 50 (70.0%)** | **43 / 50 (86.0%)** | **39 / 50 (78.0%)** | **40 / 50 (80.0%)** | **36 / 50 (72.0%)** | **38 / 50 (76.0%)** | **39.20 ± 2.59 (78.4% ± 5.2%)** | **[35.99, 42.41] (72.0% – 84.8%)** |
-| **95% Wilson CI (Yield)** | [23.7%, 76.3%] | [80.8%, 96.5%] | **[56.2%, 80.9%]** | **[73.8%, 93.0%]** | **[64.8%, 87.2%]** | **[67.0%, 88.8%]** | **[58.3%, 82.5%]** | **[62.6%, 85.7%]** | **[72.9%, 83.0%]** | — |
-| **Accepted Logic Errors (INV-1)** | **0 (0.0000)** | **0.0000** | **0 (0.0000)** | **0 (0.0000)** | **0 (0.0000)** | **0 (0.0000)** | **0 (0.0000)** | **0 (0.0000)** | **0.0000 ± 0.0000** | **[0.0000, 0.0000] (100% clean)** |
+| **95% Wilson CI (Per-Run)** | [23.7%, 76.3%] | [80.8%, 96.5%] (Mean) | **[56.2%, 80.9%]** | **[73.8%, 93.0%]** | **[64.8%, 87.2%]** | **[67.0%, 88.8%]** | **[58.3%, 82.5%]** | **[62.6%, 85.7%]** | **[72.8%, 83.0%] (Pooled 196/250)** | — |
+| **Accepted Logic Errors (INV-1)** | **0 (0.0000)** | **0.0000** | **0 / 35 (0.0%)** | **0 / 43 (0.0%)** | **0 / 39 (0.0%)** | **0 / 40 (0.0%)** | **0 / 36 (0.0%)** | **0 / 38 (0.0%)** | **0 / 196 (0.0000 ± 0.0000)** | **0 events observed (95% upper bound < 1.5%)** |
 | **Attempt Logic Errors** | 0 (0.0%) | 0.00 ± 0.00 (0.0%) | **5 / 73 (6.8%)** | **0 / 64 (0.0%)** | **5 / 67 (7.5%)** | **3 / 64 (4.7%)** | **3 / 70 (4.3%)** | **7 / 71 (9.9%)** | **3.60 ± 2.61 (5.4% ± 3.6%)** | **[0.36, 6.84] errors** |
 | **Total Attempts** | 20 | 13.60 ± 1.14 | **73 (1.46/seed)** | **64 (1.28/seed)** | **67 (1.34/seed)** | **64 (1.28/seed)** | **70 (1.40/seed)** | **71 (1.42/seed)** | **67.20 ± 3.27 (1.34/seed)** | **[63.14, 71.26] attempts** |
 | **Total Benchmark Tokens** | 261,357 | 184,016.0 | **885,526** | **755,275** | **753,916** | **725,201** | **862,870** | **858,322** | **791,116.8 ± 64,572.6** | **[710,952.2, 871,281.4] tokens** |
 | **Tokens / Accepted Row** | 52,271.4 | 20,292.5 ± 4,125.1 | **25,300.7** | **17,564.5** | **19,331.2** | **18,130.0** | **23,968.6** | **22,587.4** | **20,316.3 ± 2,820.5** | **[16,814.8, 23,817.8] tokens/row** |
-| **Token Reduction vs. Unpruned** | — | -61.2% | Baseline (0.0%) | **-30.6%** | **-23.6%** | **-28.3%** | **-5.3%** | **-10.7%** | **-19.7% ($p=0.0168$)** | — |
+| **Token Reduction vs. Unpruned** | — | -61.2% | Baseline (0.0%) | **-30.6%** | **-23.6%** | **-28.3%** | **-5.3%** | **-10.7%** | **-19.7% (Exploratory $p=0.0168$)** | — |
 | **Safe Accepted Rate** | — | — | **15 / 25 (60.0%)** | **21 / 25 (84.0%)** | **18 / 25 (72.0%)** | **20 / 25 (80.0%)** | **15 / 25 (60.0%)** | **17 / 25 (68.0%)** | **18.20 ± 2.39 (72.8% ± 9.5%)** | **[15.23, 21.17] (60.9% – 84.7%)** |
 | **Vulnerable Accepted Rate** | — | — | **20 / 25 (80.0%)** | **22 / 25 (88.0%)** | **21 / 25 (84.0%)** | **20 / 25 (80.0%)** | **21 / 25 (84.0%)** | **21 / 25 (84.0%)** | **21.00 ± 0.71 (84.0% ± 2.8%)** | **[20.12, 21.88] (80.5% – 87.5%)** |
 | **Adjudication Winner Split** | — | — | **21 Pro / 14 Con** | **23 Pro / 20 Con** | **18 Pro / 21 Con** | **16 Pro / 24 Con** | **19 Pro / 17 Con** | **21 Pro / 17 Con** | **19.4 Pro / 19.8 Con** | **97 Pro / 99 Con Cumulative** |
@@ -41,11 +41,11 @@ Following the completion of the 10-seed pilot evaluation in [`DEBATE_BENCHMARK_B
 
 ## 3. Key Findings from the 5-Replicate Scaling Evaluation
 
-### A. Statistically Significant Yield Dominance ($p = 0.0222 < 0.05$)
-Across 5 independent replicates ($N=250$ test evaluations on 50 virgin seeds), the Sliced Judge sustained a mean yield of **78.4% ± 5.2% (39.20 ± 2.59 accepted rows/run)**, with individual replicates reaching up to **86.0% (43 rows)**. Compared to the paired Unpruned Control yield of **70.0% (35 rows)**, AST Program Slicing delivered an average improvement of **+8.4% absolute yield (+12.0% relative gain)**. A one-sample two-tailed Student's $t$-test confirmed statistical significance against the control baseline ($t(4) = 3.628, p = 0.0222$).
+### A. Exploratory Yield Comparison vs. Unpruned Control (One-Sample $t(4) = 3.628, p = 0.0222$)
+Across 5 independent sliced replicates ($5 \text{ runs} \times 50 \text{ seeds} = 250$ run-seed evaluations across 50 virgin scenarios), the Sliced Judge sustained a mean yield of **78.4% ± 5.2% (39.20 ± 2.59 accepted rows/run)** [95% run-level $t$-interval: $[72.0\%,\, 84.8\%]$], with individual replicates reaching up to **86.0% (43 rows)**. Compared to the single reference Unpruned Control run yield of **70.0% (35 rows)**, AST Program Slicing delivered an exploratory difference of **+8.4% absolute yield (+12.0% relative gain)**. A one-sample two-tailed Student's $t$-test against the fixed 35-row control benchmark confirmed this difference ($t(4) = 3.628, p = 0.0222$). Because only a single control run was evaluated at this scale, this comparison is exploratory rather than a fully paired multi-replicate control test.
 
-### B. Significant Token Cost Reduction ($p = 0.0168 < 0.05$)
-Tokens per accepted row across the 5 replicates averaged **20,316.3 ± 2,820.5 tokens/row** (95% CI: $[16,814.8,\, 23,817.8]$). The upper confidence bound ($23,817.8$) strictly excludes the Unpruned Control baseline cost of **25,300.7 tokens/row**, demonstrating a statistically significant **19.7% reduction in token burn** ($t(4) = 3.952, p = 0.0168$). Across 250 evaluation episodes, Tree-sitter AST slicing conserved over **472,000 total tokens**.
+### B. Exploratory Token Cost Reduction (One-Sample $t(4) = 3.952, p = 0.0168$)
+Tokens per accepted row across the 5 replicates averaged **20,316.3 ± 2,820.5 tokens/row** (95% run-level $t$-interval: $[16,814.8,\, 23,817.8]$). The upper confidence bound ($23,817.8$) strictly excludes the single Unpruned Control baseline cost of **25,300.7 tokens/row**, reflecting a **19.7% exploratory reduction in token burn** ($t(4) = 3.952, p = 0.0168$). Across the 250 run-seed evaluation episodes, Tree-sitter AST slicing conserved over **472,000 total tokens** relative to the unpruned control rate.
 
 ### C. Balanced Ground-Truth Grounding & Safe Invariant Defense
 Cumulative adjudication across all 5 runs achieved near-perfect epistemic symmetry:
@@ -53,11 +53,11 @@ Cumulative adjudication across all 5 runs achieved near-perfect epistemic symmet
 - **Safe Codebase Acceptance:** Averaged **72.8% ± 9.5% (18.2 / 25)**, outperforming the Unpruned Control (**60.0%**) by **+12.8%**. AST slicing removes distracting code constructs, allowing the Con debater to cleanly ground protective invariants.
 - **Vulnerable Codebase Acceptance:** Averaged **84.0% ± 2.8% (21.0 / 25)**, exceeding the Unpruned Control (**80.0%**) by **+4.0%**.
 
-### D. Flawless Invariant Purity Across 336 Cumulative Attempts (INV-1 = 0.0000)
-Across all 5 runs (336 total debate attempts and 196 accepted training samples):
-- **Zero accepted logic errors** ($0.0000$ error rate).
+### D. Invariant Integrity Across 336 Cumulative Attempts (INV-1 = 0.0000)
+Across all 5 runs (336 total debate attempts across 50 scenarios, yielding 196 accepted training samples):
+- **Zero accepted logic errors** ($0 / 196$ accepted rows, $0.0000$ observed rate; 95% one-sided binomial upper bound $< 1.5\%$).
 - **Zero invariant leaks** into the generated training corpora.
-- 100% compliance with B-Gate anti-gaming invariants.
+- Strict compliance with B-Gate anti-gaming invariants across all 5 runs.
 
 ---
 
@@ -69,8 +69,8 @@ To guarantee strict, unassailable causal attribution, all runs in this benchmark
    By passing `--no-reflector` to `run_batch.py`, the Reflector Client and Pareto Registry are completely bypassed. All prompts are generated via `get_static_baseline_prompt(taxonomy)`, locking `active_mutation_id` to `baseline_v0` across every single attempt (verified in `artifacts/attempts/unrun-sliced-50-rep1..5.jsonl`).
 2. **Elimination of Non-Stationary Drift:**
    No prompt mutation occurs during the benchmark runs. Seed 1 and Seed 50 are adjudicated under an identical, stationary prior distribution.
-3. **Scientific Isolation of AST Slicing:**
-   Because no warm mutated prompts or topological repair directives are used, the observed yield and token gains are 100% causally attributable to **Tree-sitter AST Program Slicing + Dual-Track Epistemic Reflection**, rather than prompt engineering or historical optimization.
+3. **Scientific Isolation of AST Slicing (Controlled Baseline):**
+   Because no warm mutated prompts or topological repair directives were used in either condition, the observed yield and token differences between the sliced replicates and the reference control are directly linked to **Tree-sitter AST Program Slicing + Dual-Track Epistemic Reflection**, without confounding prompt mutations. Full causal claims remain qualified by the single control run reference.
 4. **Replicate Independence:** Each replicate runs against an invariant starting state, preventing cross-replicate ledger contamination.
 
 ### Context: GEPA Pareto Frontier Warmth Lineage
