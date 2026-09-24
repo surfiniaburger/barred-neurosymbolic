@@ -156,8 +156,8 @@ To guarantee that Progressive Escalation did not contaminate the immutable basel
 
 Regime 4 definitively closes **Chapter 1 (Systems and Orchestration Evaluation under Historical Prompts)**:
 
-1. **System Architecture Optimum:** Decoupling cold first-pass triage from deep warm-adaptive escalation is the mathematically superior orchestration strategy for multi-agent LLM debate pipelines.
+1. **System Architecture Optimum:** Across the four evaluated regimes, decoupling cold first-pass triage from deep warm-adaptive escalation achieved the highest observed yield and token efficiency in this benchmark.
 2. **Benchmark Closure:** With 85.20% yield, 60.22% post-failure recovery, 18,411 tokens/row, and 0 accepted logic errors across 250 episodes, the limits of pure system-level orchestration have been empirically established.
 3. **Chapter 2 Focus (Formatting Shield & Structural Grounding):**
-   - The remaining 14.8% failure ceiling is predominantly driven by first-pass anchor drops (42 attempts failed for `anchors_too_few_after_normalization`).
+   - At the attempt level, missing or ungrounded line anchors formed the largest single rejection category (42 of 130 total rejections across all 343 attempts were for `anchors_too_few_after_normalization`).
    - In Chapter 2, we implement **Angle 1 (Formatting Shield: Anchor-First Invariant Output Blocks)** to prevent Instruction Competition from dropping anchors, with the objective of elevating Round-0 pass rate from 62.8% to >75%, targeting **>92% net yield**.
