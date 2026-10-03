@@ -131,18 +131,18 @@ Reflector Capability (Theoretically 100%)
 ### 4.1 Conceptual Formulation
 Let the shared task space be $\mathcal{T}$, defined as the set of all binary verification decisions over the benchmark seed corpus (e.g., `cve_seeds_benchmark_50.jsonl`). Define:
 
-- $M \subseteq \mathcal{T}$: the seeds the model can resolve correctly using intrinsic reasoning alone.
-- $R \subseteq \mathcal{T}$: the seeds for which the reflector extracts sufficient deterministic evidence for a correct verdict.
+- $M \subseteq \mathcal{T}$: the seeds the model resolves correctly using intrinsic reasoning alone (no reflector supplied).
+- $R \subseteq \mathcal{T}$: the seeds where supplying reflector evidence results in a correct end-to-end decision — i.e., both the reflector extracted sufficient evidence **and** the model conditioned its reasoning on that evidence. $R$ is therefore bounded above by the extraction reach $R_{\text{extract}}$ (Axis B/C coverage) and further reduced by model utilization failures $R_{\text{util}}$ (Axis D): $R \subseteq R_{\text{extract}}$, and $|R_{\text{util}}| = |R_{\text{extract}} \setminus R|$ counts seeds where evidence was present but the model ignored it. The §7 diagnostic taxonomy separates these sub-components for post-hoc attribution.
 - $m = |M| / |\mathcal{T}|$: normalized model reasoning reach (scalar in $[0,1]$).
-- $r = |R| / |\mathcal{T}|$: normalized reflector evidence reach (scalar in $[0,1]$).
-- $x = |M \cap R| / |\mathcal{T}|$: normalized evidence overlap — seeds resolvable by both, providing no additive value.
+- $r = |R| / |\mathcal{T}|$: normalized effective reflector reach — end-to-end correct decisions attributable to reflector evidence (scalar in $[0,1]$).
+- $x = |M \cap R| / |\mathcal{T}|$: normalized evidence overlap — seeds where both sources independently yield a correct verdict, providing no additive value.
 
 Effective decision capability $e = |M \cup R| / |\mathcal{T}|$ over $\mathcal{T}$ is then governed by the inclusion-exclusion identity:
 
 $$e \approx m + r - x$$
 
 Where:
-- **For a compact model ($m$ is small):** $x$ is small. External deterministic evidence $r$ provides massive marginal leverage over $\mathcal{T}$.
+- **For a compact model ($m$ is small):** $x$ is small. Effective reflector reach $r$ provides massive marginal leverage over $\mathcal{T}$, provided model utilization failures (Axis D) are controlled.
 - **For a frontier model ($m$ is large):** $x$ is large. The reflector provides bounding efficiency and token savings, but less novel semantic discovery over $\mathcal{T}$.
 
 ### 4.2 Two Routes to Verification Capability
@@ -295,5 +295,5 @@ To validate the Evidence Substitution Hypothesis across the benchmark dataset ($
 ### Core Hypotheses to Confirm:
 1. **$H_1$ (Evidence Substitution):** Cell 2 (Compact + Reflector) will achieve mechanism validity within $\pm 10\%$ of Cell 3 (Frontier Standard Raw), at a $>80\%$ cost reduction.
 2. **$H_2$ (Sufficiency Ceiling):** Where Cell 2 (Compact + Reflector) fails compared to Cell 5 (Frontier Deep Raw), $>80\%$ of failures will categorize under **Axis D (Evidence Insufficiency)** rather than Axis A (Reasoning Failure).
-3. **$H_3$ (Oracle Decoupling via Reasoning Reach):** Cell 5 (Frontier Deep Raw) will show lower agreement with the benchmark Oracle than Cell 3 (Frontier Standard Raw) on seeds with misleading comments, demonstrating that higher reasoning reach decouples from benchmark labeling bias.
+3. **$H_3$ (Oracle Decoupling via Reasoning Reach):** Cell 5 (Frontier Deep Raw) will show lower raw agreement with the benchmark Oracle than Cell 3 (Frontier Standard Raw) on seeds containing misleading comments. **Critically, lower oracle agreement alone is not sufficient to confirm $H_3$.** To confirm the hypothesis, each Cell 5 disagreement with the Oracle on the target seeds must be independently validated as a technically invalid predicate via at least one of: (a) a deterministic reflector trace (AST/CFG evidence showing the claimed mechanism is structurally impossible), (b) a POSIX/language-specification citation that refutes the predicate, or (c) an adversarial replication by a second independent frontier model reaching the same rejection. Neural-audit-only rejections by Cell 5 are classified as **Provisional Disagreements** per Section 6 and reported separately from Validated Predicate Invalidity findings. Oracle agreement rates for each cell are reported independently of the predicate-validity classification to avoid circular conflation.
 4. **$H_4$ (Diminishing Marginal Utility):** The delta between Cell 6 and Cell 5 will be smaller than the delta between Cell 2 and Cell 1. Each delta is measured as the absolute difference in **mechanism validity rate** (fraction of seeds where the submitted predicate passes semantic audit) between the reflector-assisted and raw-code conditions within each model tier. $H_4$ is confirmed if $\Delta_{\text{Frontier}} < \Delta_{\text{Compact}}$ and the ratio $\Delta_{\text{Frontier}} / \Delta_{\text{Compact}} < 0.5$ (i.e., the frontier evidence gain is less than half the compact evidence gain), evaluated over the full $N=50$ seed corpus. No minimum absolute effect size is imposed; a bootstrap 95% CI on each delta will be reported alongside the ratio. **Edge case:** If $\Delta_{\text{Compact}} = 0$ (the reflector provides no measurable gain for the compact model), $H_4$ is classified as **not confirmed** and the ratio is not computed, since a zero compact delta is itself evidence that reflector evidence fails to substitute for compact-model reasoning reach, which undermines the precondition for the diminishing-returns comparison.
