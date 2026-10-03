@@ -129,14 +129,16 @@ Reflector Capability (Theoretically 100%)
 ## 4. The Evidence Substitution Hypothesis
 
 ### 4.1 Conceptual Formulation
-Let intrinsic model reasoning reach be $M$, and usable reflector evidence reach be $R$. Effective decision capability $E$ is governed by:
+Let the shared task space be $\mathcal{T}$, defined as the set of all binary verification decisions over the benchmark seed corpus (e.g., `cve_seeds_benchmark_50.jsonl`). Both $M$ and $R$ are subsets of $\mathcal{T}$ measured by the fraction of seeds for which each source can independently determine the correct verdict (mechanistic validity, not oracle agreement). Effective decision capability $E$ over $\mathcal{T}$ is governed by:
 
 $$E \approx M + R - (M \cap R)$$
 
 Where:
-- $M \cap R$ is the **evidence overlap** (facts the model could have deduced on its own).
-- **For a compact model ($M$ is small):** $M \cap R$ is small. External deterministic evidence $R$ provides massive marginal leverage.
-- **For a frontier model ($M$ is large):** $M \cap R$ is large. The reflector provides bounding efficiency and token savings, but less novel semantic discovery.
+- $M \subseteq \mathcal{T}$: the seeds the model can resolve correctly using intrinsic reasoning alone.
+- $R \subseteq \mathcal{T}$: the seeds for which the reflector extracts sufficient deterministic evidence for a correct verdict.
+- $M \cap R$: the **evidence overlap** — seeds resolvable by both, providing no additive value.
+- **For a compact model ($M$ is small):** $M \cap R$ is small. External deterministic evidence $R$ provides massive marginal leverage over $\mathcal{T}$.
+- **For a frontier model ($M$ is large):** $M \cap R$ is large. The reflector provides bounding efficiency and token savings, but less novel semantic discovery over $\mathcal{T}$.
 
 ### 4.2 Two Routes to Verification Capability
 
@@ -184,8 +186,8 @@ We ran the Gemma 12B model (`google/gemma-4-12b-qat` via LM Studio) as an unassi
    1  ( 2.2%)  audit_rejected_context_deficient
 ```
 
-**The Diagnosis:**  
-When deprived of deterministic evidence reach, Gemma 12B suffered **evidence starvation**. It was forced to speculate on raw C code, inventing mechanisms that were physically impossible under language semantics (e.g., claiming a UAF on statically allocated structs or an OOB read on guarded arrays). Gemini 3.8 Flash dismantled 73.3% of these attempts with formal code proofs.
+**Observed Failure Pattern (Hypothesis Pending Controlled Ablation):**  
+With no deterministic evidence reach supplied, Gemma 12B produced mechanisms that were physically inconsistent with the analyzed code (e.g., claiming a UAF on statically allocated structs or an OOB read on guarded arrays). We refer to this failure mode as **evidence starvation** — a hypothesis that the absence of reflector evidence, rather than a fundamental reasoning deficit, is the primary causal driver. This causal claim will be formally tested by the Cell 1 vs. Cell 2 ablation defined in Section 8. In this receipt, 33 of 45 rejected attempts (73.3%) were classified as `audit_rejected_flawed_mechanism` by the Gemini 3.8 Flash semantic auditor. These represent **semantic-audit rejections** — verdicts issued by a neural auditor based on semantic analysis — and do not constitute independently checkable formal proofs.
 
 ### Receipt 2: The Pilot 10 Comparative Matrix (Seeds 42–51)
 
@@ -195,8 +197,8 @@ When deprived of deterministic evidence reach, Gemma 12B suffered **evidence sta
 | Metric | Local Gemma Swarm (12B/E4B) | Gemini 3.5 Flash / 3.6 Flash | Gemini 3.8 Flash (Auditor) | Causal Implication |
 | :--- | :---: | :---: | :---: | :--- |
 | **Accepted Rows** | 7 / 10 (70.0%) | 7 / 10 (70.0%) | 4 / 10 (40.0%) | Strictness $\neq$ inaccuracy |
-| **Vulnerable Acc** | 4 / 5 (80.0%) | **5 / 5 (100.0%)** | 4 / 5 (80.0%) | Caught invalid Seed 51 |
-| **Safe Acc** | 3 / 5 (60.0%) | 2 / 5 (40.0%) | 0 / 5 (0.0%) | Enforced invariant checks |
+| **Vulnerable Acceptance Rate** | 4 / 5 (80.0%) | **5 / 5 (100.0%)** | 4 / 5 (80.0%) | Caught invalid Seed 51 |
+| **Safe Acceptance Rate** | 3 / 5 (60.0%) | 2 / 5 (40.0%) | 0 / 5 (0.0%) | Enforced invariant checks |
 | **Anchor Traps** | 2 (20.0%) | **0 (0.0%)** | 1 (10.0%) | Syntactic attrition |
 | **Tokens / Row** | **24,356 tokens** | 40,465 tokens | 79,609 tokens | Frontier depth is expensive |
 | **Cost / Row** | **$0.0000** | $0.1452 | $0.1742 | Economic trade-off |
@@ -289,4 +291,4 @@ To validate the Evidence Substitution Hypothesis across the benchmark dataset ($
 1. **$H_1$ (Evidence Substitution):** Cell 2 (Compact + Reflector) will achieve mechanism validity within $\pm 10\%$ of Cell 3 (Frontier Standard Raw), at a $>80\%$ cost reduction.
 2. **$H_2$ (Sufficiency Ceiling):** Where Cell 2 (Compact + Reflector) fails compared to Cell 5 (Frontier Deep Raw), $>80\%$ of failures will categorize under **Axis D (Evidence Insufficiency)** rather than Axis A (Reasoning Failure).
 3. **$H_3$ (Oracle Decoupling via Reasoning Reach):** Cell 5 (Frontier Deep Raw) will show lower agreement with the benchmark Oracle than Cell 3 (Frontier Standard Raw) on seeds with misleading comments, demonstrating that higher reasoning reach decouples from benchmark labeling bias.
-4. **$H_4$ (Diminishing Marginal Utility):** The delta between Cell 6 and Cell 5 will be significantly smaller than the delta between Cell 2 and Cell 1, confirming that deterministic evidence provides diminishing marginal returns as model reasoning reach increases.
+4. **$H_4$ (Diminishing Marginal Utility):** The delta between Cell 6 and Cell 5 will be smaller than the delta between Cell 2 and Cell 1. Each delta is measured as the absolute difference in **mechanism validity rate** (fraction of seeds where the submitted predicate passes semantic audit) between the reflector-assisted and raw-code conditions within each model tier. $H_4$ is confirmed if $\Delta_{\text{Frontier}} < \Delta_{\text{Compact}}$ and the ratio $\Delta_{\text{Frontier}} / \Delta_{\text{Compact}} < 0.5$ (i.e., the frontier evidence gain is less than half the compact evidence gain), evaluated over the full $N=50$ seed corpus. No minimum absolute effect size is imposed; a bootstrap 95% CI on each delta will be reported alongside the ratio.
