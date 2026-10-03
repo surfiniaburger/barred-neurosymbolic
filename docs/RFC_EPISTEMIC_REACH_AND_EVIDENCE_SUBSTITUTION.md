@@ -73,7 +73,7 @@ when evidence is missing.       syntactic/predicate traps.      refutes deceptiv
 - **Not Scalar "Intelligence":** A model with higher reasoning reach is not simply "better at everything"; it possesses a broader horizon of latent knowledge regarding formal invariants, API contracts, and edge cases.
 - **Empirical Receipt (Seed 51, `login-utils/setpwnam.c`):**  
   Seed 51 contains a classic `mktemp()` race in `/tmp`. However, the prompt asserted that the vulnerability was *"an arbitrary file overwrite in `rename(tmpname, PASSWD_FILE)` via a symbolic link"*, reinforced by a misleading developer comment.
-  - **Gemma 12B & Gemini 3.5:** Accepted the claim because their reasoning reach trusted the inline comment and high-level exploit narrative.
+  - **Gemma 12B & the combined reasoning of Gemini 3.5/Gemini 3.6:** Accepted the claim because their reasoning reach trusted the inline comment and high-level exploit narrative.
   - **Gemini 3.8 Flash:** Rejected the claim because its reasoning reach recognized that under POSIX semantics, `rename(2)` **does not dereference symlinks**, the destination path is hardcoded to `/etc/passwd`, and `/tmp` sticky-bit semantics block unprivileged unlinking.
 
 ### 2.2 Reflector Evidence Reach
