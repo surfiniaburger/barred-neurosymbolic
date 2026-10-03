@@ -129,16 +129,21 @@ Reflector Capability (Theoretically 100%)
 ## 4. The Evidence Substitution Hypothesis
 
 ### 4.1 Conceptual Formulation
-Let the shared task space be $\mathcal{T}$, defined as the set of all binary verification decisions over the benchmark seed corpus (e.g., `cve_seeds_benchmark_50.jsonl`). Both $M$ and $R$ are subsets of $\mathcal{T}$ measured by the fraction of seeds for which each source can independently determine the correct verdict (mechanistic validity, not oracle agreement). Effective decision capability $E$ over $\mathcal{T}$ is governed by:
+Let the shared task space be $\mathcal{T}$, defined as the set of all binary verification decisions over the benchmark seed corpus (e.g., `cve_seeds_benchmark_50.jsonl`). Define:
 
-$$E \approx M + R - (M \cap R)$$
-
-Where:
 - $M \subseteq \mathcal{T}$: the seeds the model can resolve correctly using intrinsic reasoning alone.
 - $R \subseteq \mathcal{T}$: the seeds for which the reflector extracts sufficient deterministic evidence for a correct verdict.
-- $M \cap R$: the **evidence overlap** — seeds resolvable by both, providing no additive value.
-- **For a compact model ($M$ is small):** $M \cap R$ is small. External deterministic evidence $R$ provides massive marginal leverage over $\mathcal{T}$.
-- **For a frontier model ($M$ is large):** $M \cap R$ is large. The reflector provides bounding efficiency and token savings, but less novel semantic discovery over $\mathcal{T}$.
+- $m = |M| / |\mathcal{T}|$: normalized model reasoning reach (scalar in $[0,1]$).
+- $r = |R| / |\mathcal{T}|$: normalized reflector evidence reach (scalar in $[0,1]$).
+- $x = |M \cap R| / |\mathcal{T}|$: normalized evidence overlap — seeds resolvable by both, providing no additive value.
+
+Effective decision capability $e = |M \cup R| / |\mathcal{T}|$ over $\mathcal{T}$ is then governed by the inclusion-exclusion identity:
+
+$$e \approx m + r - x$$
+
+Where:
+- **For a compact model ($m$ is small):** $x$ is small. External deterministic evidence $r$ provides massive marginal leverage over $\mathcal{T}$.
+- **For a frontier model ($m$ is large):** $x$ is large. The reflector provides bounding efficiency and token savings, but less novel semantic discovery over $\mathcal{T}$.
 
 ### 4.2 Two Routes to Verification Capability
 
