@@ -95,7 +95,7 @@ print(f"Diagnostic Reason: {decision.reason}")
 
 ### 3. Run Test Suite
 ```bash
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ---
