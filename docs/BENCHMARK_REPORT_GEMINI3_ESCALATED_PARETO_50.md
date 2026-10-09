@@ -45,8 +45,8 @@ This report establishes the empirical findings of **Cell 4** in our 2×2 factori
 
 1. **Net Yield Elevation ($56.0\% \to 60.0\%$):**
    - The progressive injection of deterministic evidence lifted net accepted yield from **28 / 50 (56.0%)** in the unassisted baseline (Cell 3) to **30 / 50 (60.0%)** in Cell 4 (+4.0 pp net gain).
-2. **Elevated Sensitivity on True Vulnerabilities ($88.0\% \to 96.0\%$):**
-   - On the 25 Vulnerable codebases, Gemini 3 accepted **24 / 25 (96.0%)**, gaining +8.0 pp over the baseline. Frontier sensitivity increased from 88.0% to 96.0% on benchmark-labeled vulnerable seeds.
+2. **Vulnerable-Seed Acceptance and Adjudicated Sensitivity:**
+  - Gemini 3 accepted **24 / 25 benchmark-labeled vulnerable rows (96.0%)**. Adjudication verdicts were positive for **19 / 25 seeds (76.0%)**, a 12.0 pp decrease from the stated 88.0% baseline sensitivity.
 3. **Safe-Seed Quarantine Preserved (24.0% Accepted, 76.0% Quarantined):**
    - Across the 25 Safe codebases, Gemini 3 accepted **only 6 / 25 (24.0%)**, exactly preserving the unassisted baseline's 76% quarantine.
    - Safe-seed acceptance remained at 24.0% (6/25), unchanged from the unassisted frontier baseline. Unlike compact models that accept up to 80% of safe codebases by credulously validating plausible exploit narratives, the frontier verifier blocked fabricated exploit arguments, intercepting 41 attempt-level logic errors (a 52.6% interception rate) and quarantining 19 safe codebases.
@@ -150,7 +150,7 @@ The RFC requires every verification failure to be catalogued under the 7-axis ta
 | **52** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[D]** | Predicate: OOB kernel write via unchecked socket option length in `pvc_setsockopt`. Anchors confirmed `vcc_setsockopt` delegation; support_level `unsupported`. Verifier rejected because the ultimate bounds check happens inside `vcc_setsockopt` (cross-file call target) — an inter-procedural flow that AST slices cannot trace. |
 | **56** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[D]** | Predicate: UAF/invalid pointer dereference in `gss_process_context_token` via `ctx->internal_ctx_id`. Anchors present; `support_level: unsupported`. Verifier blocked: the lifecycle of `ctx->internal_ctx_id` depends on GSS-API context reference counting semantics (GSSAPI RFC 2743) — not observable from local AST. |
 | **60** | Safe | `anchors_too_few` | `verifier_logic_error` | **[A]** | Predicate: UAF in `gss_get_mic` when `context_handle` is invalid. R1 used the same anchors as Seed 56 (`ctx->internal_ctx_id == GSS_C_NO_CONTEXT` guard). `support_level: supported`, `winner: pro_debater`. The guard IS present in AST. Verifier blocked despite the guard — this is an Axis A case: evidence was reachable by the reflector but the pro debater's reasoning about when `GSS_C_NO_CONTEXT` can be violated was logically invalid (it requires the caller to violate the API contract, not the callee). |
-| **62** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[D]** | Predicate: UAF race in `sock_diag_lock_handler`/`sock_diag_unlock_handler`. `support_level: supported`, `winner: pro_debater`. Verifier blocked because the race requires concurrent thread scheduling — a runtime temporal interleaving the AST cannot encode. |
+| **62** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[E]** | Predicate: UAF race in `sock_diag_lock_handler`/`sock_diag_unlock_handler`. The supplied source serializes handler lookup, the dump callback, and unregister mutation with `sock_diag_table_mutex`, refuting the claimed concurrent unregister/UAF path. |
 | **64** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[A]** | Predicate: stack-based buffer overflow in `Huff_Decompress` via unchecked `cch` length. Anchors: `seq[j]`, `seq[j] = ch`. `support_level: supported`. The `cch` bound is actually enforced by the Huffman decode loop termination condition (implicit via the decompression algorithm invariant). The model failed to reason from the loop terminator to the impossibility of OOB — evidence was AST-reachable; the reasoning chain was incorrect. |
 | **66** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[D]** | Predicate: UAF in `crypto_rng_reset` when `seed` callback retains pointer asynchronously. Anchors: `kmalloc`, `seed(tfm, seed, slen)`, `kfree`. `support_level: unsupported`. Whether the algorithm's `seed` callback is synchronous or asynchronous is a kernel crypto subsystem registration contract — not visible in the caller's AST slice. |
 | **68** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[A]** | Predicate: OOB read in `isofs_export_get_parent` via unchecked `parent_offset`. Reflector found anchors `de->length` and `bh->b_data + parent_offset`. Verifier note explicitly states: *"Bounds check verified present...Dereference is guarded."* Pro debater won the judge round but verifier correctly confirmed the guard. This is Axis A: the model produced a valid-sounding exploit story but the AST evidence itself refutes the predicate. |
@@ -159,7 +159,7 @@ The RFC requires every verification failure to be catalogued under the 7-axis ta
 | **78** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[E]** | Predicate: stack-based overflow in `open_input_file` via unchecked `strcat` on `cwd`. Anchors include `if (cwd_len + suffix_len + fname_len >= sizeof(cwd))` guard directly preceding the `strcat`. `support_level: unsupported`. The bounds check is present and guards the concatenation. Predicate is demonstrably false. |
 | **80** | Safe | `judge_parse_failed` | `verifier_missing` | **[C]** | Predicate: 32-bit integer overflow in `ras_puthdr`. R0: judge output was malformed JSON (`judge_parse_failed`). R1: verifier output was absent from the response (`verifier_missing`). Infrastructure/parser failure independent of the vulnerability claim's validity. |
 | **82** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[D]** | Predicate: UAF race in `ipv6_defrag` during async eviction of `nf_ct_frag6_gather`. `support_level: supported`. The race condition requires concurrent IPv6 fragment reassembly and netfilter conntrack GC to interleave at a specific kernel scheduling point — a runtime temporal contract unreachable by static AST. |
-| **84** | Safe | `anchors_too_few` | `verifier_logic_error` | **[A]** | Predicate asserts the code is NOT vulnerable to OOB in `tcp_packet_get`. Anchors are `struct tcp_sock_t` and `#include "tcp.h"`. `support_level: supported`. The reflector extracted only header-level anchors; the actual loop body was not sliced. With insufficient structural context, the model asserted safety incorrectly — the verifier found the claim unsupported by the available evidence. Axis A: model concluded safety without sufficient evidence from the slice. |
+| **84** | Safe | `anchors_too_few` | `verifier_logic_error` | **[B]** | Predicate asserts the code is NOT vulnerable to OOB in `tcp_packet_get`. R0 extracted only `msg->content_length`; R1 supplied a `tcp_open` declaration and `tcp.h`, but omitted `tcp_packet_get` and its loop body. The verifier rejected the anchors as unrelated to the claimed sink, so the terminal failure is reflector extraction insufficiency. |
 | **86** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[A]** | Predicate: stack overflow in `luaT_callTM`. Anchors: `EXTRA_STACK`, `L->top + 4 <= L->stack_last + EXTRA_STACK`. `verifier_report`: *"Valid invariant confirmation under EXTRA_STACK sizing guarantees."* — the verifier's own note says the invariant holds. Support_level `supported` but verifier blocked it. This is Axis A: the model correctly identified the guard expression but failed to account for the Lua VM's reallocatable stack, where `stack_last` moves on realloc — an algebraic reasoning gap with evidence present. |
 | **90** | Safe | `verifier_logic_error` | `verifier_logic_error` | **[D]** | Predicate: OOB in `gdImageJpegPtr` when `sx=0`. Anchors: `src->sx = 0`, `gdImageJpegPtr(src, ...)`. `support_level: supported`. Whether `gdImageJpegPtr` performs a zero-width guard internally depends on the libgd library's internal implementation — an inter-library contract not visible to the local AST slice. |
 
@@ -169,24 +169,23 @@ The RFC requires every verification failure to be catalogued under the 7-axis ta
 Total Terminal Failures: 20
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[A] Model Reasoning Failure (evidence present; logic invalid):   5
-    Seeds: 60, 64, 68, 84, 86
+[A] Model Reasoning Failure (evidence present; logic invalid):   4
+  Seeds: 60, 64, 68, 86
 
-[B] Reflector Extraction Failure:                                0
-    (4 seeds had anchors_too_few in R0, all escalated to R1;
-     classified by their R1 terminal cause, not R0 gate cause)
+[B] Reflector Extraction Failure:                                1
+  Seed: 84 (R1 anchors omitted the asserted sink function)
 
 [C] Parser / Interface Failure:                                  1
     Seeds: 80
 
-[D] Evidence Insufficiency (runtime/OS contracts unreachable):   9
-    Seeds: 42, 46, 48, 52, 56, 66, 82, 88*, 90
+[D] Evidence Insufficiency (runtime/OS contracts unreachable):   8
+  Seeds: 42, 46, 48, 52, 56, 66, 82, 90
     Common pattern: cross-file call semantics, kernel lifecycle
     contracts (VFS, GSSAPI, netfilter, crypto subsystem),
     and inter-library bounds enforcement.
 
-[E] Predicate Invalidity (mechanism demonstrably false):         4
-    Seeds: 45, 70, 74, 78
+[E] Predicate Invalidity (mechanism demonstrably false):         5
+    Seeds: 45, 62, 70, 74, 78
     Note: the guarded-path case (74, 78) is AST-refutable;
     the size_t overflow case (70) is type-theoretically refutable.
 
@@ -196,22 +195,20 @@ Total Terminal Failures: 20
     Seeds: 44 (timing side-channel; requires micro-arch evidence)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-* Seed 88 accepted (verdict "0" via validated_con_counter_evidence);
-  excluded from terminal count. Seed 62 classified as D (concurrency).
 ```
 
 > [!NOTE]
-> The previously reported claim that "18 of 20 failures are Axis D" is revised. The per-seed analysis shows 9 Axis D, 5 Axis A, 4 Axis E, 1 Axis C, and 1 Axis G. This is a meaningful correction: **Axis A failures (5/20, 25%)** indicate the reflector provided reachable structural evidence but the model's reasoning chain was still incorrect — suggesting that evidence injection alone is insufficient for this failure subclass and that targeted reasoning prompts or chain-of-thought scaffolding may be needed.
+> The previously reported claim that "18 of 20 failures are Axis D" is revised. The per-seed analysis shows 8 Axis D, 4 Axis A, 1 Axis B, 5 Axis E, 1 Axis C, and 1 Axis G. This is a meaningful correction: **Axis A failures (4/20, 20%)** indicate the reflector provided reachable structural evidence but the model's reasoning chain was still incorrect — suggesting that evidence injection alone is insufficient for this failure subclass and that targeted reasoning prompts or chain-of-thought scaffolding may be needed.
 
 #### Implications for $H_2$ (Evidence Sufficiency Hypothesis)
 
 $H_2$ predicts that >80% of failures in the compact+reflector vs. frontier+raw comparison will be Axis D rather than Axis A. The Cell 4 data shows:
 
-- Axis D: 9 / 20 = **45%** of terminal failures
-- Axis A: 5 / 20 = **25%** of terminal failures
-- Axis E + C + G: 6 / 20 = **30%** of terminal failures
+- Axis D: 8 / 20 = **40%** of terminal failures
+- Axis A: 4 / 20 = **20%** of terminal failures
+- Axis B + E + C + G: 8 / 20 = **40%** of terminal failures
 
-**Status:** $H_2$ is **not confirmed by Cell 4 alone.** Axis D is the plurality but not the >80% supermajority required. However, $H_2$ was defined against the Cell 2 vs. Cell 5 comparison (Gemma+Reflector vs. Gemini Raw). Cell 4 represents the Gemini+Reflector tier; the Axis D share may differ in the compact+reflector run where intrinsic reasoning reach is lower and evidence insufficiency is more likely to be the binding constraint. Full $H_2$ evaluation requires Cell 2's failure taxonomy.
+**Status:** $H_2$ is **not confirmed by Cell 4 alone.** Axis D is the plurality but not the >80% supermajority required. However, $H_2$ was defined against the Cell 2 vs. Cell 3 comparison (Gemma+Reflector vs. Gemini Raw). Cell 4 represents the Gemini+Reflector tier; the Axis D share may differ in the compact+reflector run where intrinsic reasoning reach is lower and evidence insufficiency is more likely to be the binding constraint. Full $H_2$ evaluation requires Cell 2's failure taxonomy.
 
 ---
 
