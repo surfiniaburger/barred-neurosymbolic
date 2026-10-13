@@ -75,7 +75,7 @@ This is exactly the distinction the RFC emphasizes: model reasoning reach, refle
 The finalized run evidence changes the earlier provisional interpretation in a narrow but important way:
 
 - **H1 (Evidence Substitution):** partially supported but not confirmed as a full equivalence claim. The reflector materially helps compact models, but the final Gemma escalated run still contains too much false-positive acceptance to treat the reflector as equivalent to frontier reasoning.
-- **H2 (Sufficiency Ceiling):** not confirmed. The finalized Gemma and Gemini residuals do not support the blanket claim that the majority of all residual failures are Axis D; the failure mix is model-specific and varies between compact and frontier stacks.
+- **H2 (Sufficiency Ceiling):** not confirmed. The finalized Gemma and Gemini residuals do not support the blanket claim that the majority of all residual failures are Axis D; the failure mix is model-specific and varies between compact and frontier stacks. Moreover, Cell 4 alone cannot evaluate H2 — a valid cell comparison requires matched populations and a shared taxonomy, which the current Gemma (130 rejection attempts across 343 attempts) and Gemini (20 terminal failures under the seven-axis taxonomy) profiles do not satisfy.
 - **H3 (Oracle Decoupling via Reasoning Reach):** strongly supported for Gemini. The final evidence shows a repeated pattern in which the frontier stack rejects benchmark-labeled predicates when the underlying argument is structurally or semantically invalid, and this is only meaningful when independently reconciled with deterministic evidence or POSIX semantics.
 - **H4 (Diminishing Marginal Utility):** not confirmed under the final delta comparison. The compact model clearly benefits, but the frontier delta is not sufficiently smaller than the compact one to support the strict diminishing-return threshold.
 
@@ -96,9 +96,10 @@ The strongest common finding is this:
 ### Gemma pattern
 The Gemma escalated-pareto run is the clearest example of a system that benefits strongly from warm escalation, while still suffering from:
 
-- evidence coverage gaps (`anchors_too_few_after_normalization`)
-- evidence sufficiency problems (`verifier_failed`, `predicate_quality_failed`)
-- model utilization failures (`verifier_logic_error`)
+  - evidence coverage gaps (`anchors_too_few_after_normalization`)
+  - evidence sufficiency problems (`predicate_quality_failed`)
+  - verifier failures (`verifier_failed`)
+  - model utilization failures (`verifier_logic_error`)
 
 The aggregate result is a good example of the RFC thesis:
 
@@ -126,6 +127,8 @@ Instead, the Gemini stack usually fails later in the pipeline, where the problem
 ## 4. Comparison of dominant failure modes
 
 The benchmark reports give the numerical totals. This supplement is meant to interpret the residual error profile.
+
+> **Comparison caveat:** The Gemma and Gemini profiles below are presented as separate qualitative summaries, not as an apples-to-apples comparison. They use unmatched populations (Gemma reports 130 rejection attempts across 343 attempts; Gemini reports 20 terminal failures under the seven-axis taxonomy) and different taxonomies, so failure shares should not be compared numerically. Cell 4 alone cannot evaluate H2; matched populations and a shared taxonomy are required before comparing failure shares.
 
 ### High-level comparison
 
@@ -191,7 +194,7 @@ This document should be used as a comparative supplement in the following way:
 
 - use the benchmark reports for the primary tables and model-vs-model scorecards,
 - use this taxonomy document to explain which causal failure mode is dominating in each model stack,
-- use the same taxonomy across Gemma and Gemini so the comparison remains apples-to-apples.
+- use the same taxonomy across Gemma and Gemini, **and require matched populations before treating any failure-share comparison as apples-to-apples**.
 
 Recommended file arrangement:
 
