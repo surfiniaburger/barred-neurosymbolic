@@ -99,7 +99,7 @@ BARRED's reported evaluation uses four explicit invariants:
 | INV-1 | `accepted_logic_error_rate == 0.0` | Prevent known logic-error cases from contaminating the accepted evaluation corpus |
 | INV-2 | `b2_anchor_match_rate >= 0.80` | Enforce a minimum anchor-match rate |
 | INV-3 | `verifier_parse_ok_rate >= 0.95` | Enforce a minimum verifier parse-success rate |
-| INV-4 | Zero cross-scenario data leakage | Prevent evidence or state from leaking between benchmark scenarios |
+| INV-4 | Scenario-grouped train/test partitioning for candidate pre-filter models | Prevent scenario-predicate leakage between evaluation folds using `cve_id` or a SHA-256 predicate hash |
 
 These are evaluation gates, not proofs of general program safety. Their effectiveness depends on correct implementation, valid benchmark labels, representative scenarios, and independent assessment of accepted and rejected results.
 
