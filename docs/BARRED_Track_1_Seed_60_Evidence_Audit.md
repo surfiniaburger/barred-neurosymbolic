@@ -2,9 +2,9 @@
 
 ## Question audited
 
-**Claim:** “The code is vulnerable to an arbitrary-pointer dereference (use-after-free) in `gss_get_mic` when `context_handle` is not a valid `gss_union_ctx_id_t` object.”
+**Claim:** “The code is vulnerable to an unchecked/invalid-pointer dereference in `gss_get_mic` when `context_handle` is not a valid `gss_union_ctx_id_t` object.”
 
-**Result:** **Mechanism confirmed by runtime trace; reachability still open.** The unchecked dereference is present and real, and it is now demonstrated: a harness (`/tmp/harness60/harness.c`) calling `gss_get_mic` with a crafted handle whose `internal_ctx_id != GSS_C_NO_CONTEXT` and whose `mech_type` points to unmapped memory crashed with SIGSEGV. So the memory-safety defect is reachable given a crafted handle. What remains open is attacker reachability — whether any real caller passes attacker-influenced data as a `gss_ctx_id_t` — which is a threat-model question no source fetch settles.
+**Result:** **Mechanism reproduced in harness; reachability still open.** The unchecked dereference is present and real, and a harness (`/tmp/harness60/harness.c`) reproduced a crash for a crafted handle whose `internal_ctx_id != GSS_C_NO_CONTEXT` and whose `mech_type` points to unmapped memory. This demonstrates the dereference path in the harness, but does not establish upstream lookup behavior or reachability from a real GSSAPI caller. What remains open is attacker reachability — whether any real caller passes attacker-influenced data as a `gss_ctx_id_t` — which is a threat-model question no source fetch settles.
 
 ## What was examined
 
@@ -45,7 +45,7 @@
 | Does the dereference precede downstream validation? | Yes; `ctx->internal_ctx_id` and `ctx->mech_type` are read before `gssint_get_mechanism`. | Unchecked deref confirmed. |
 | Can an attacker supply a crafted handle? | Not established by the seed; depends on whether any caller passes untrusted data as a `gss_ctx_id_t` and on the surrounding mechglue. | Unresolved. |
 | Does the mechglue provide a handle registry? | Not in the supplied snippet. | Unknown. |
-| Is a trigger demonstrated? | Yes (mechanism): harness crashed with SIGSEGV on a crafted handle (internal_ctx_id != 0, garbage mech_type). Reachability (attacker caller) still unproven. | Mechanism demonstrated; reachability open. |
+| Is a trigger demonstrated? | Yes (mechanism, in-harness): harness reproduced a crash for a crafted handle (internal_ctx_id != 0, garbage mech_type). This demonstrates the dereference path in the harness; it does not establish upstream lookup behavior or reachability from a real GSSAPI caller. | Mechanism demonstrated in harness; reachability open. |
 
 ## Why the model results are not used as proof
 
@@ -57,9 +57,9 @@ This is **RFC Axis D: evidence insufficiency** (not Axis E predicate invalidity)
 
 **Partially resolved — mechanism now confirmed by runtime trace, reachability still open.**
 
-A minimal C harness was written (`/tmp/harness60/harness.c`) that defines `gss_union_ctx_id_t` from the upstream mechglue layout, implements `val_get_mic_args` and `gss_get_mic` verbatim from the seed, and supplies a stub `gssint_get_mechanism` that dereferences its `mech_type` argument (mirroring the real mechglue lookup). It calls `gss_get_mic` with a crafted handle whose `internal_ctx_id != GSS_C_NO_CONTEXT` (so it passes the NULL check) and whose `mech_type` points to unmapped memory. By construction this dereferences `ctx->internal_ctx_id` (passes) then dereferences the garbage `mech_type` in `gssint_get_mechanism` (crash). Execution was blocked by the unaccepted Xcode license (same constraint as the seed-50 audit), so the crash is established by construction rather than a runtime trace.
+A minimal C harness was written (`/tmp/harness60/harness.c`) that defines `gss_union_ctx_id_t` from the upstream mechglue layout, implements `val_get_mic_args` and `gss_get_mic` verbatim from the seed, and supplies a stub `gssint_get_mechanism` that dereferences its `mech_type` argument (mirroring the real mechglue lookup). It calls `gss_get_mic` with a crafted handle whose `internal_ctx_id != GSS_C_NO_CONTEXT` (so it passes the NULL check) and whose `mech_type` points to unmapped memory. By construction this dereferences `ctx->internal_ctx_id` (passes) then dereferences the garbage `mech_type` in `gssint_get_mechanism` (crash).
 
-**Mechanism confirmed by runtime trace (2026-10-18).** The harness `/tmp/harness60/harness.c` was compiled with clang after the Xcode license was accepted and executed: `./harness` printed `RESULT: crash (SIGSEGV/SIGBUS) on crafted handle -> dereference reachable`. This confirms that, given a crafted handle with `internal_ctx_id != GSS_C_NO_CONTEXT` and a garbage `mech_type`, `gss_get_mic` dereferences the handle without validation and crashes. The memory-safety defect is therefore demonstrated, not merely asserted.
+**Runtime trace (2026-10-18).** The harness `/tmp/harness60/harness.c` was compiled with clang after the Xcode license was accepted and executed: `./harness` printed `RESULT: crash (SIGSEGV/SIGBUS) on crafted handle -> dereference reachable`. The harness reproduced a crash for a crafted handle with `internal_ctx_id != GSS_C_NO_CONTEXT` and a garbage `mech_type`. This demonstrates the dereference path in the harness, but does not establish upstream lookup behavior or reachability from a real GSSAPI caller.
 
 What remains is the threat-model gap (reachability): whether any real caller passes attacker-influenced data as a `gss_ctx_id_t`. The 1998 Sun glue and the GSSAPI calling convention are what matter; a modern mechglue fetch does not settle the caller model. A documented trusted-caller-only contract, or a harness running in a real GSSAPI caller path with a crafted handle, would settle reachability. Until reachability is established this stays Axis D on security relevance, even though the mechanism is confirmed.
 
