@@ -16,7 +16,7 @@
    kfree(data);
    return acl;
    ```
-2. I verified the callee contract against upstream Linux. `posix_acl_from_xattr` (current `fs/posix_acl.c`) parses `value`/`size` into a freshly allocated `struct posix_acl *` via `posix_acl_alloc`/`kmalloc`; the returned ACL owns its own `a_entries` array and never aliases the input buffer. On parse failure it releases the ACL via `posix_acl_release` and returns `ERR_PTR(-EINVAL)`. The input `data` is consumed by value, not retained.
+2. I verified the callee contract against upstream Linux (torvalds/linux master: `fs/posix_acl.c` @ `posix_acl_from_xattr`, `fs/gfs2/acl.c` @ `gfs2_xattr_acl_get`, `fs/gfs2/xattr.c`). `gfs2_xattr_acl_get` allocates its own buffer (`kmalloc`/`gfs2_xattr_get`) and passes it as `value`/`size` to `posix_acl_from_xattr`, which parses it into a freshly allocated `struct posix_acl *` via `posix_acl_alloc`/`kmalloc`; the returned ACL owns its own `a_entries` array and never aliases the input buffer. The producer (`gfs2_xattr_acl_get`) retains ownership of `data` and the caller (`__gfs2_get_acl`) is responsible for freeing it, which is exactly what `kfree(data)` does. It returns `NULL` for a valid header with no entries, propagates header-validation errors via `ERR_PTR(count)`, returns `ERR_PTR(-ENOMEM)` when ACL allocation fails, and releases an allocated ACL only when entry validation fails before returning `ERR_PTR(-EINVAL)`. The input `data` is consumed by value, not retained.
 3. Therefore `kfree(data)` frees the xattr buffer, which the ACL no longer references. No dangling pointer is created; the returned ACL remains valid.
 4. The Qwen pilot adjudication ledger (RFC Axis E) already classified this as predicate invalidity; this audit confirms it independently.
 
