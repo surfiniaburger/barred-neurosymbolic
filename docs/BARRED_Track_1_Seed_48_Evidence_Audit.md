@@ -4,7 +4,7 @@
 
 **Claim:** "The code is vulnerable to privilege escalation via writable sysctl entries in `llc2_timeout_table`."
 
-**Result:** **Proved safe for this exact privilege-escalation claim.** Every entry in `llc2_timeout_table` is registered with `.mode = 0644` (owner read/write, group read, others read). Only the file owner (root, via the `net` sysctl namespace) can write; unprivileged users have read-only access. There is no writable entry and therefore no privilege escalation through this table.
+**Result:** **Proved safe only for unprivileged writes.** Every entry in `llc2_timeout_table` is registered with `.mode = 0644` (owner read/write, group read, others read). This table is registered on `init_net`. Linux grants the owner-mode bits to any task for which `CAP_NET_ADMIN` is effective in `init_net`'s owning user namespace, so such a task can write these entries. A task that is neither the sysctl owner nor capable with `CAP_NET_ADMIN` in that user namespace has no write access. No write path exists for the audit's unprivileged attacker model; the table does contain a privileged write path.
 
 ## What was examined
 
@@ -30,7 +30,7 @@
 | What is the alleged bad operation? | Unprivileged write to `llc2_timeout_table` sysctl entries. | Identified precisely. |
 | What is the file mode? | `0644` on every entry. | Root-writable only. |
 | Can an unprivileged user write? | No. | No privilege escalation. |
-| Is a trigger demonstrated? | No. | Claim refuted. |
+| Is a write by the specified unprivileged attacker possible? | No. `0644` denies write access without `CAP_NET_ADMIN` in the network namespace's owning user namespace. | Claim refuted. |
 
 ## Why the model results were misleading
 
