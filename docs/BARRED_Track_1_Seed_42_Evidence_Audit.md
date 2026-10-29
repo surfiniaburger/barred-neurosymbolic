@@ -11,7 +11,7 @@ This is not a claim about arbitrary in-kernel callers, memory corruption elsewhe
 ## What was examined
 
 1. I selected seed 42 from the replicated Gemma/Gemini persistent-disagreement queue because the allegation is precise: a NULL-pointer dereference in `ext2_fsync`.
-2. I read its canonical benchmark record in [`scenarios/debate/cve_seeds_benchmark_50.jsonl`](../scenarios/debate/cve_seeds_benchmark_50.jsonl). It supplies the historical `linux/fs/ext2/file.c` excerpt, labels the claim `safe`, and correctly states that refutation requires demonstrating the VFS guarantee for `file->f_mapping` and `file->f_mapping->host`.
+2. I read its canonical benchmark record in `scenarios/debate/cve_seeds_benchmark_50.jsonl` (row offset 0, seed 42, predicate: NULL-pointer dereference in ext2_fsync). It supplies the historical `linux/fs/ext2/file.c` excerpt, labels the claim `safe`, and correctly states that refutation requires demonstrating the VFS guarantee for `file->f_mapping` and `file->f_mapping->host`.
 3. I traced the original function body in that excerpt. Before calling `generic_file_fsync`, it evaluates:
 
    ```c
@@ -31,8 +31,8 @@ This is not a claim about arbitrary in-kernel callers, memory corruption elsewhe
      -> ext2_fsync() for ext2_file_operations
    ```
 
-   `fs/file_table.c:163-180` initializes a normal file with `file->f_inode = path->dentry->d_inode` and `file->f_mapping = path->dentry->d_inode->i_mapping`. `fs/inode.c:165-171` initializes that mapping with `mapping->host = inode`. Therefore the first chain, `file->f_mapping->host->i_sb`, is constructed from a live inode rather than user-controlled pointers.
-7. I traced ext2's backing-device invariant. `fs/ext2/super.c:1423-1427` mounts ext2 through `mount_bdev`. `fs/super.c:929-939` assigns `s->s_bdev` before the filesystem becomes active. `fs/block_dev.c:556-587` assigns `bdev->bd_inode = inode` when the block device is created or retrieved. Therefore the second chain, `sb->s_bdev->bd_inode->i_mapping`, is also initialized on the normal mounted-ext2 path.
+   `fs/file_table.c:156-157` assigns `file->f_mapping = path->dentry->d_inode->i_mapping`. `fs/inode.c:155-157` initializes that mapping with `mapping->host = inode`. Therefore the first chain, `file->f_mapping->host->i_sb`, is constructed from a live inode rather than user-controlled pointers.
+7. I traced ext2's backing-device invariant. `fs/ext2/super.c` mounts ext2 through `mount_bdev`. `fs/super.c:3742-3748` assigns `s->s_bdev`. `fs/block_dev.c:537-544` assigns `bdev->bd_inode = inode` when the block device is created or retrieved. Therefore the second chain, `sb->s_bdev->bd_inode->i_mapping`, is also initialized on the normal mounted-ext2 path.
 
 ## Evidence ledger
 
@@ -56,7 +56,7 @@ The apparent disagreement was a good reason to audit the claim. The source-level
 
 ## Provenance check: why this predicate entered the benchmark
 
-The source was traced back to the local CVEFixes corpus at `/Users/surfiniaburger/Desktop/modular-metacog-swarm-v3/kaggle_notebooks/CVEFixes.csv`:
+The source was traced back to the CVEFixes corpus (CVEFixes.csv, row 13,125; SHA-256 of code `cbfe54dfd25c3bbbd0646bc6032284724e0bbe623414f9ecaf63320bd75ab8e8`):
 
 | Check | Result |
 |---|---|
