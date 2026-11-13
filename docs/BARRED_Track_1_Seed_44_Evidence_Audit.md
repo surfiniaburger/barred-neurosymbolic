@@ -4,7 +4,7 @@
 
 **Claim:** “The code is vulnerable to timing side-channel attacks in the `pointZZ_pMul` function (scalar multiplication) because it uses a secret-dependent branch (if-else on `mpz_tstbit`) that causes data-dependent execution paths.”
 
-**Result:** **Confirmed vulnerable for this exact timing side-channel claim.** The supplied `pointZZ_pMul` (and `pointZZ_pShamirsTrick`) branch on secret scalar bits and execute different, data-dependent sequences of point additions and doublings. Unlike seeds 42, 46, 50, 66, and 68, the supplied source does contain the unchecked, secret-dependent operation the predicate describes; the benchmark `safe` label is wrong for this predicate (label mismatch).
+**Result:** **Confirmed vulnerable for this exact timing side-channel claim, contingent on the scalar being secret (unverified in the available evidence).** The supplied `pointZZ_pMul` (and `pointZZ_pShamirsTrick`) branch on secret scalar bits and execute different, data-dependent sequences of point additions and doublings. Unlike seeds 42, 46, 50, 66, and 68, the supplied source does contain the unchecked operation the predicate describes (branching on scalar bits). Whether the benchmark `safe` label is 'wrong' for this predicate is unresolved: it depends on whether the scalar is secret in the caller's context and on what `safe` denotes, neither of which the corpus establishes (label meaning unresolved).
 
 ## What was examined
 
@@ -32,25 +32,25 @@
    - Both call `mpz_invert(..., curve->p)`, and GMP's modular inverse is not constant-time.
    - `mpz_cmp`, `mpz_cmp_ui`, and the conditional `mpz_set` calls are data-dependent in timing.
    Hence the scalar's bit pattern leaks through multiple independent timing channels, not just the top-level branch.
-5. Provenance: the supplied topic matches CVEFixes row 26613 exactly (SHA-256 `87aa43444950b40e263623745ce084a4be8bcbbaea96e2f8477744fc0800721d`, 8971 bytes, language `c`, safety `safe`). A second, shorter variant (row 18019, 7580 bytes) is labelled `vulnerable` in the same corpus. As with seeds 42, 46, 50, and 68, the CSV retains only `code`, `language`, and `safety` — no version/commit metadata. The CSV label `safe` disagrees with the demonstrable, source-level timing dependence; the label is a triage signal, not proof.
+5. Provenance: the supplied topic matches CVEFixes row 26613 exactly (SHA-256 `87aa43444950b40e263623745ce084a4be8bcbbaea96e2f8477744fc0800721d`, 8971 bytes, language `c`, safety `safe`). A second, shorter variant (row 18019, 7580 bytes) is labelled `vulnerable` in the same corpus. As with seeds 42, 46, 50, and 68, the CSV retains only `code`, `language`, and `safety` — no version/commit metadata. The source exhibits a demonstrable, source-level timing dependence (branching on scalar bits plus data-dependent arithmetic). The CSV `safe` label's meaning is not defined by the corpus (no version/commit metadata), so whether it is 'wrong' for this predicate is unresolved — it may describe a particular fixed state rather than timing behavior. The label is a triage signal, not proof.
 
 ## Evidence ledger
 
 | Required question | Evidence | Conclusion |
 |---|---|---|
 | What is the alleged bad operation? | `if (mpz_tstbit(scalar, i)) { ... } else { ... }` in `pointZZ_pMul`, plus `mpz_tstbit`-driven branching in `pointZZ_pShamirsTrick`. | Identified precisely. |
-| Is the branch secret-dependent? | Yes; `scalar` is the private scalar passed by the caller (Python binding `curvemath.mul` takes `d` as a decimal string and converts via `mpz_init_set_str`). | Secret-dependent. |
+| Is the branch secret-dependent? | The branch condition depends on bits of `scalar`. Whether `scalar` is secret in any caller is not established by the available evidence: the cited binding only shows string-to-integer parsing, and no caller of `curvemath.mul` or the point-multiplication functions was found outside this audit. | Open question (conditional on a secret scalar). |
 | Does execution time vary with the secret? | Yes; branch bodies differ in operand roles, and callees (`pointZZ_pAdd`, `pointZZ_pDouble`, `mpz_invert`) have data-dependent early returns and non-constant-time arithmetic. | Timing varies. |
-| Is the scalar required to be secret? | For a curve-multiplication routine used in ECC, the scalar is the private key; constant-time is a standard requirement. The function exposes no constant-time alternative. | Applicable threat model. |
+| Is the scalar required to be secret? | For a curve-multiplication routine used in ECC, the scalar is conventionally the private key and constant-time is a standard requirement, but this presumes the caller treats it as secret, which is unverified (see above). The function exposes no constant-time alternative. | Applicable threat model only if the scalar is secret (unverified). |
 | Is a trigger demonstrated? | Reachability shown by construction: any non-trivial secret scalar exercises both branches; timing correlation follows from the data-dependent code paths. No runtime trace required. | Claim substantiated. |
-| Benchmark label | CVEFixes labels this variant `safe`, but the source is demonstrably non-constant-time. | Label mismatch (benchmark wrong). |
+| Benchmark label | CVEFixes labels this variant `safe`. The source is demonstrably non-constant-time in the respects above; whether that contradicts the label depends on what `safe` denotes, which is unresolved. The conclusion is conditional on the scalar being secret. | Timing finding documented; label meaning unresolved. |
 
 ## Why the model results were misleading
 
-The GEPA predicate correctly identified a real, source-level timing dependence; it is not a false mechanism. The replicated model disagreement (Gemma 3/5 Pro-accepted vs. Gemini 0/5) is best explained by the benchmark label being wrong for this predicate rather than by either model failing: Gemma's Pro acceptances track the genuine non-constant-time code, while Gemini's rejections track the (incorrect) `safe` label. The model outcomes are process evidence only; the source settles the result.
+The GEPA predicate correctly identified a real, source-level timing dependence; it is not a false mechanism. The replicated model disagreement (Gemma 3/5 Pro-accepted vs. Gemini 0/5) is consistent with the benchmark label being misleading for this predicate, but that explanation is conditional on the scalar being secret and on what `safe` denotes, both unresolved; it is not established that the label is 'wrong'. The model outcomes are process evidence only; the source settles the result.
 
-This is a **label mismatch** (the predicate is sound and the code is vulnerable; the `safe` oracle label is incorrect), not Axis E predicate invalidity and not Axis D evidence insufficiency. The `safe` label must not be used as a correctness oracle for this seed.
+This is a **timing finding** (the predicate identifies a real, source-level non-constant-time operation, contingent on the scalar being secret), not a settled label mismatch: whether the `safe` oracle label is incorrect depends on what `safe` denotes, which is unresolved. It is not Axis E predicate invalidity and not Axis D evidence insufficiency. The `safe` label must not be treated as a correctness oracle for this seed without defining its meaning.
 
 ## Audit boundary
 
-This result is limited to the exact seed-44 claim of a timing side-channel in `pointZZ_pMul`/`pointZZ_pShamirsTrick` via secret-dependent `mpz_tstbit` branching and data-dependent arithmetic. It does not assess other functions in the module, does not constitute a full vulnerability report or exploitability assessment, and does not establish remote exploitability or key recovery. It does not depend on the CVEFixes `safe` label, which is incorrect for this predicate.
+This result is limited to the exact seed-44 claim of a timing side-channel in `pointZZ_pMul`/`pointZZ_pShamirsTrick` via secret-dependent `mpz_tstbit` branching and data-dependent arithmetic. It does not assess other functions in the module, does not constitute a full vulnerability report or exploitability assessment, and does not establish remote exploitability or key recovery. It documents a timing finding independent of how the CVEFixes `safe` label should be interpreted, which is unresolved.
