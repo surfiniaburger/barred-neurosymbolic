@@ -45,4 +45,4 @@ This is **RFC Axis D: evidence insufficiency** (not Axis E predicate invalidity)
 
 ## Required next evidence
 
-Obtain the matching `wbmp.c` (`createwbmp`) and inspect whether `width * height` (or the row-size computation) is checked for overflow before allocation, and whether a non-NULL undersized allocation is possible. Then run a harness with extremely large dimensions under a memory sanitizer. A crash or controlled write proves the claim; an explicit overflow check or allocation failure refutes it.
+Obtain the matching `wbmp.c` (`createwbmp`) and inspect whether `width * height` (or the row-size computation) is checked for overflow before allocation, and whether a non-NULL undersized allocation is possible. Then run a harness with extremely large dimensions under a memory sanitizer. A sanitizer report of an out-of-bounds access at `wbmp->bitmap[pos]` proves the claim. A crash in other code, or an in-bounds write, does not. Refutation requires evidence covering every permitted dimension pair and the `pos` index range, such as an overflow check on the allocation size and on the pixel count. One failed allocation covers only that dimension pair.
