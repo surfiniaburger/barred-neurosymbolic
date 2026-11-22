@@ -35,16 +35,16 @@
    }
    ```
    Thus any truncated size that is zero or negative is rejected before any buffer use, and `ret->size` is set only to the (small, non-negative) truncated value.
-4. I checked the modular bound for a truncated *positive* size. Writing `L = RSTRING_LEN(content)` and `N = (int)L` (two's-complement truncation), a positive `N` implies `L = k·2^32 + N` for some `k ≥ 0`, so `N ≤ L`. libxml2 then parses at most `N` bytes from a buffer of `L` bytes; the read cannot exceed the allocation. Even in the pathological case `N = INT_MAX`, `L ≥ INT_MAX`.
+4. I checked the modular bound for a truncated *positive* size. Writing `L = RSTRING_LEN(content)` and `N = (int)L` (two's-complement truncation), a positive `N` implies `L = k·2^32 + N` for some `k ≥ 0`, so `N ≤ L`. This bounds the bytes libxml2 can consume from the source buffer to at most `N`; it does not by itself bound any destination allocation, which is not traced in this audit. Even in the pathological case `N = INT_MAX`, `L ≥ INT_MAX`, so the source read stays within the `L`-byte buffer.
 5. I traced the Nokogiri error path. When `xmlSchemaNewMemParserCtxt` returns `NULL`, `read_memory` falls through to `xmlSchemaParse(ctx)` with `ctx == NULL`? No — Nokogiri assigns `ctx` first, then calls `xmlSchemaParse(ctx)`; on a `NULL` ctx libxml2 returns `NULL` for `xmlSchemaParse`, so `schema == NULL`, and Nokogiri raises `rb_raise(rb_eRuntimeError, "Could not parse document")` (or surfaces the libxml2 error). No memory corruption occurs.
-6. I checked the CVEFixes provenance. The supplied topic matches CVEFixes row 24782 exactly (SHA-256 `cafda613dd7fc5a243cd77ef036bf971474147718e7a318ee2670a1d3dd807c8`, 6580 bytes, language `c`, safety `safe`). As with seeds 42, 50, and 68, the CSV retains only `code`, `language`, and `safety` — no version/commit metadata. The CSV label is `safe`, consistent with this result, but the version-matched libxml2 source — not the label — settles it.
+6. I checked the CVEFixes provenance. The supplied topic matches CVEFixes row 24782 exactly (SHA-256 `cafda613dd7fc5a243cd77ef036bf971474147718e7a318ee2670a1d3dd807c8`, 6580 bytes, language `c`, safety `safe`). As with seeds 42, 50, and 68, the CSV retains only `code`, `language`, and `safety` — no version/commit metadata. The CSV label is `safe`, consistent with this result, but libxml2 2.9.13 (the version available in the local SDK, treated here as a conditional audit target rather than a version match to the seed, since the seed carries no version/commit metadata) — not the label — settles it.
 
 ## Evidence ledger
 
 | Required question | Evidence | Conclusion |
 |---|---|---|
 | What is the alleged bad operation? | `(int)RSTRING_LEN(content)` passed as `size` to `xmlSchemaNewMemParserCtxt`. | Identified precisely. |
-| Is the narrowing unchecked locally? | Yes; no `INT_MAX` guard or raise precedes the call. | Local guard absent. |
+| Is the narrowing unchecked locally? | The seed as supplied shows the call with no `INT_MAX` guard or raise preceding it. The cited reports (`docs/debate_benchmark_gemma_vs_gemini3_pilot10.md` and `docs/BENCHMARK_REPORT_GEMINI3_ESCALATED_PARETO_50.md`) describe guards (`if (content_len > INT_MAX) rb_raise(...)` and `if (len != (int)len)`) that are not present in the supplied snippet, so those descriptions are inaccurate for this seed. | Local guard absent (per supplied seed). |
 | Does the callee accept a truncated size? | No; `xmlSchemaNewMemParserCtxt` returns `NULL` when `size <= 0` (libxml2 2.9.13 and master). | Negative/zero truncation rejected. |
 | Can a truncated *positive* size exceed the buffer? | No; `N = L mod 2^32` (positive) implies `N ≤ L`, so the parse reads at most `N` of `L` bytes. | Bounded by construction. |
 | Does a `NULL` context corrupt memory? | No; `xmlSchemaParse(NULL)` returns `NULL` and Nokogiri raises a Ruby error. | No corruption. |
@@ -54,7 +54,7 @@
 
 The GEPA predicate noticed an unchecked narrowing conversion and inferred a heap buffer overflow, but it omitted two decisive facts: libxml2's `size <= 0` rejection and the modular bound that keeps any surviving positive size below the actual buffer length. The replicated model outcomes are therefore not used as adjudication evidence.
 
-This is **RFC Axis E: predicate invalidity**. The Nokogiri code's missing local guard is a real code smell, but it is not a vulnerability because the callee's contract absorbs the truncation. An `INT_MAX` check in Nokogiri would be defense-in-depth, not a required fix for this claim.
+This is **RFC Axis E: predicate invalidity**. The Nokogiri code's absent local guard is a real code smell (per the supplied seed), but it is not a vulnerability because the callee's contract absorbs the truncation. An `INT_MAX` check in Nokogiri would be defense-in-depth, not a required fix for this claim.
 
 ## Audit boundary
 
