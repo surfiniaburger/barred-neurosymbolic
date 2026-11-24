@@ -1,4 +1,4 @@
-# BARRED Track 1 — Seed 51 Evidence Audit (Qwen pilot)
+# BARRED Track 1 — Seed 51 Evidence Audit
 
 ## Question audited
 
@@ -8,10 +8,10 @@
 
 ## What was examined
 
-1. Seed 51 is from the Qwen pilot manifest (10 seeds, 42–51); benchmark label `vulnerable`. The relevant code: creates `tmpname` under `/etc`, then calls `rename(tmpname, PASSWD_FILE)`.
+1. Seed 51 (benchmark label `vulnerable`). The relevant code creates `tmpname` in a public directory (the seed's inline comment and repository docs place it in `/tmp`, e.g. `/* TOCTOU Race Condition: tmpname is in a public dir and could be replaced with a symlink before rename */`), then calls `rename(tmpname, PASSWD_FILE)`. Any `mktemp()`-in-`/tmp` race is a separate concern from the `rename()` symlink-target-overwrite claim, which this audit refutes.
 2. I verified against the POSIX `rename()` specification: `rename()` replaces the directory entry at the destination pathname. If the destination is a symbolic link, the link itself is replaced; the link is not dereferenced and its target is not modified. This is distinct from `open()` with `O_NOFOLLOW` semantics and from `renameat2` with flags.
 3. The destination `PASSWD_FILE` is a fixed, compile-time path, not attacker-selected, so an attacker cannot redirect the rename to an arbitrary location. The only attacker influence would be placing a symlink at that fixed path, which (per point 2) is replaced rather than followed.
-4. The Qwen pilot adjudication ledger (RFC Axis E) already classified this as predicate invalidity; this audit confirms it independently.
+4. The POSIX analysis above is independent of any prior classification.
 
 ## Evidence ledger
 
